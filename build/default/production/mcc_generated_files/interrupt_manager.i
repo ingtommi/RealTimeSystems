@@ -1,4 +1,4 @@
-# 1 "mcc_generated_files/mcc.c"
+# 1 "mcc_generated_files/interrupt_manager.c"
 # 1 "<built-in>" 1
 # 1 "<built-in>" 3
 # 288 "<built-in>" 3
@@ -6,8 +6,11 @@
 # 1 "<built-in>" 2
 # 1 "/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/language_support.h" 1 3
 # 2 "<built-in>" 2
-# 1 "mcc_generated_files/mcc.c" 2
-# 47 "mcc_generated_files/mcc.c"
+# 1 "mcc_generated_files/interrupt_manager.c" 2
+# 49 "mcc_generated_files/interrupt_manager.c"
+# 1 "mcc_generated_files/interrupt_manager.h" 1
+# 49 "mcc_generated_files/interrupt_manager.c" 2
+
 # 1 "mcc_generated_files/mcc.h" 1
 # 49 "mcc_generated_files/mcc.h"
 # 1 "/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/xc.h" 1 3
@@ -20996,8 +20999,6 @@ char *tempnam(const char *, const char *);
 # 8 "/opt/microchip/xc8/v2.45/pic/include/c99/conio.h" 2 3
 # 54 "mcc_generated_files/mcc.h" 2
 
-# 1 "mcc_generated_files/interrupt_manager.h" 1
-# 55 "mcc_generated_files/mcc.h" 2
 
 # 1 "mcc_generated_files/i2c1_master.h" 1
 # 58 "mcc_generated_files/i2c1_master.h"
@@ -21164,46 +21165,25 @@ void SYSTEM_Initialize(void);
 void OSCILLATOR_Initialize(void);
 # 99 "mcc_generated_files/mcc.h"
 void PMD_Initialize(void);
-# 47 "mcc_generated_files/mcc.c" 2
+# 50 "mcc_generated_files/interrupt_manager.c" 2
 
 
-
-void SYSTEM_Initialize(void)
-{
-    PMD_Initialize();
-    I2C1_Initialize();
-    PIN_MANAGER_Initialize();
-    OSCILLATOR_Initialize();
-    ADCC_Initialize();
-    TMR1_Initialize();
-}
-
-void OSCILLATOR_Initialize(void)
+void __attribute__((picinterrupt(("")))) INTERRUPT_InterruptManager (void)
 {
 
-    OSCCON1 = 0x62;
+    if(INTCONbits.PEIE == 1)
+    {
+        if(PIE4bits.TMR1IE == 1 && PIR4bits.TMR1IF == 1)
+        {
+            TMR1_ISR();
+        }
+        else
+        {
 
-    OSCCON3 = 0x00;
+        }
+    }
+    else
+    {
 
-    OSCEN = 0x00;
-
-    OSCFRQ = 0x02;
-
-    OSCTUNE = 0x00;
-}
-
-void PMD_Initialize(void)
-{
-
-    PMD0 = 0x00;
-
-    PMD1 = 0x00;
-
-    PMD2 = 0x00;
-
-    PMD3 = 0x00;
-
-    PMD4 = 0x00;
-
-    PMD5 = 0x00;
+    }
 }

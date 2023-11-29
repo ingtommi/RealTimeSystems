@@ -57,6 +57,12 @@
                          Main application
  */
 
+volatile bool one_second = false;
+
+void Timer1(void){
+    one_second = true;
+}
+
 unsigned char readTC74 (void)
 {
 	unsigned char value;
@@ -111,21 +117,12 @@ void main(void)
     
     // initialize the device
     SYSTEM_Initialize();
-
-    // When using interrupts, you need to set the Global and Peripheral Interrupt Enable bits
-    // Use the following macros to:
-
-    // Enable the Global Interrupts
-    //INTERRUPT_GlobalInterruptEnable();
-
-    // Enable the Peripheral Interrupts
-    //INTERRUPT_PeripheralInterruptEnable();
-
-    // Disable the Global Interrupts
-    //INTERRUPT_GlobalInterruptDisable();
-
-    // Disable the Peripheral Interrupts
-    //INTERRUPT_PeripheralInterruptDisable();
+    
+    INTERRUPT_GlobalInterruptEnable();
+    
+    INTERRUPT_PeripheralInterruptEnable();
+    
+    TMR1_SetInterruptHandler(Timer1);
 
     OpenI2C();
     //I2C_SCL = 1;
@@ -134,77 +131,76 @@ void main(void)
     //WPUC4 = 1;
     
     LCDinit();
-    
-    //TMR1_StartTimer();    
 
     while (1)
     {
+        
+        if(one_second){
               
-        LCDcmd(0x80);
+            LCDcmd(0x80);
         
-        sprintf(time_buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-    
-        LCDstr(time_buffer);
-        
-        count++;
-        
-        if(count == PMON){        
-            // Sensor readings
-            temperature = readTC74();
-            luminosity = ADCC_GetSingleConversion(0x0) >> 8;
+            sprintf(time_buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+            
+            LCDstr(time_buffer);
 
-            // Temperature
-            LCDcmd(0xc0);                   // second line, first column
-            sprintf(measure_buffer, "%02d C ", temperature);    // extra space written to clear buffer if we lose one digit
-            while (LCDbusy());
-            LCDstr(measure_buffer);
+            count++;
 
-            // Luminosity
-            LCDpos(1,14);
-            sprintf(measure_buffer, "L%d", luminosity);
-            while (LCDbusy());
-            LCDstr(measure_buffer);
-            
-            // Reset counter
-            count = 0;
-        }
-        
-        if(ALAF) {
-            
-            LCDpos(0,15);
-            LCDstr("A");
-            
-            LCDpos(0,11);
-            if(hours == ALAH && minutes == ALAM && seconds == ALAS)
-                LCDstr("C");
-            
-            LCDpos(0,12);
-            if(temperature > ALAT)                
-                LCDstr("T");
-            else
-                LCDstr(" ");
-            
-            LCDpos(0,13);
-            if(luminosity > ALAL)                
-                LCDstr("L");
-            else
-                LCDstr(" ");
-        }
-        
-        //while(!TMR1_HasOverflowOccured());
-        //TMR1_Reload();
-        __delay_ms(1000);
-        
-        if(seconds < 59)
-            seconds++;
-        else{
-            seconds=0;
-            if(minutes < 59)
-                minutes++;
-            else{
-                minutes=0;
-                hours++;
+            if(count == PMON){
+                // Sensor readings
+                temperature = readTC74();
+                luminosity = ADCC_GetSingleConversion(0x0) >> 8;
+
+                // Temperature
+                LCDcmd(0xc0);                   // second line, first column
+                sprintf(measure_buffer, "%02d C ", temperature);    // extra space written to clear buffer if we lose one digit
+                while (LCDbusy());
+                LCDstr(measure_buffer);
+
+                // Luminosity
+                LCDpos(1,14);
+                sprintf(measure_buffer, "L%d", luminosity);
+                while (LCDbusy());
+                LCDstr(measure_buffer);
+
+                // Reset counter
+                count = 0;
             }
+
+            if(ALAF) {
+
+                LCDpos(0,15);
+                LCDstr("A");
+
+                LCDpos(0,11);
+                if(hours == ALAH && minutes == ALAM && seconds == ALAS)
+                    LCDstr("C");
+
+                LCDpos(0,12);
+                if(temperature > ALAT)                
+                    LCDstr("T");
+                else
+                    LCDstr(" ");
+
+                LCDpos(0,13);
+                if(luminosity > ALAL)                
+                    LCDstr("L");
+                else
+                    LCDstr(" ");
+            }
+
+            if(seconds < 59)
+                seconds++;
+            else{
+                seconds=0;
+                if(minutes < 59)
+                    minutes++;
+                else{
+                    minutes=0;
+                    hours++;
+                }
+            }
+            
+            one_second = false;
         }
     }
 }

@@ -20894,9 +20894,9 @@ uint8_t ADCC_GetConversionStageStatus(void);
 # 50 "mcc_generated_files/mcc.h" 2
 
 # 1 "mcc_generated_files/pin_manager.h" 1
-# 114 "mcc_generated_files/pin_manager.h"
+# 102 "mcc_generated_files/pin_manager.h"
 void PIN_MANAGER_Initialize (void);
-# 126 "mcc_generated_files/pin_manager.h"
+# 114 "mcc_generated_files/pin_manager.h"
 void PIN_MANAGER_IOC(void);
 # 51 "mcc_generated_files/mcc.h" 2
 
@@ -21064,6 +21064,9 @@ char *tempnam(const char *, const char *);
 # 8 "/opt/microchip/xc8/v2.45/pic/include/c99/conio.h" 2 3
 # 54 "mcc_generated_files/mcc.h" 2
 
+# 1 "mcc_generated_files/interrupt_manager.h" 1
+# 55 "mcc_generated_files/mcc.h" 2
+
 # 1 "mcc_generated_files/i2c1_master.h" 1
 # 58 "mcc_generated_files/i2c1_master.h"
 typedef enum {
@@ -21128,7 +21131,7 @@ void I2C1_SetAddressNackCallback(i2c1_callback_t cb, void *ptr);
 void I2C1_SetDataNackCallback(i2c1_callback_t cb, void *ptr);
 # 204 "mcc_generated_files/i2c1_master.h"
 void I2C1_SetTimeoutCallback(i2c1_callback_t cb, void *ptr);
-# 55 "mcc_generated_files/mcc.h" 2
+# 56 "mcc_generated_files/mcc.h" 2
 
 # 1 "mcc_generated_files/tmr1.h" 1
 # 100 "mcc_generated_files/tmr1.h"
@@ -21147,14 +21150,20 @@ void TMR1_Reload(void);
 void TMR1_StartSinglePulseAcquisition(void);
 # 349 "mcc_generated_files/tmr1.h"
 uint8_t TMR1_CheckGateValueStatus(void);
-# 387 "mcc_generated_files/tmr1.h"
-_Bool TMR1_HasOverflowOccured(void);
-# 56 "mcc_generated_files/mcc.h" 2
-# 72 "mcc_generated_files/mcc.h"
+# 367 "mcc_generated_files/tmr1.h"
+void TMR1_ISR(void);
+# 385 "mcc_generated_files/tmr1.h"
+ void TMR1_SetInterruptHandler(void (* InterruptHandler)(void));
+# 403 "mcc_generated_files/tmr1.h"
+extern void (*TMR1_InterruptHandler)(void);
+# 421 "mcc_generated_files/tmr1.h"
+void TMR1_DefaultInterruptHandler(void);
+# 57 "mcc_generated_files/mcc.h" 2
+# 73 "mcc_generated_files/mcc.h"
 void SYSTEM_Initialize(void);
-# 85 "mcc_generated_files/mcc.h"
+# 86 "mcc_generated_files/mcc.h"
 void OSCILLATOR_Initialize(void);
-# 98 "mcc_generated_files/mcc.h"
+# 99 "mcc_generated_files/mcc.h"
 void PMD_Initialize(void);
 # 53 "mcc_generated_files/adcc.c" 2
 # 63 "mcc_generated_files/adcc.c"

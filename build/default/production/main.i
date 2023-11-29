@@ -20824,9 +20824,9 @@ extern __bank0 __bit __timeout;
 # 50 "./mcc_generated_files/mcc.h" 2
 
 # 1 "./mcc_generated_files/pin_manager.h" 1
-# 114 "./mcc_generated_files/pin_manager.h"
+# 102 "./mcc_generated_files/pin_manager.h"
 void PIN_MANAGER_Initialize (void);
-# 126 "./mcc_generated_files/pin_manager.h"
+# 114 "./mcc_generated_files/pin_manager.h"
 void PIN_MANAGER_IOC(void);
 # 51 "./mcc_generated_files/mcc.h" 2
 
@@ -20996,6 +20996,9 @@ char *tempnam(const char *, const char *);
 # 8 "/opt/microchip/xc8/v2.45/pic/include/c99/conio.h" 2 3
 # 54 "./mcc_generated_files/mcc.h" 2
 
+# 1 "./mcc_generated_files/interrupt_manager.h" 1
+# 55 "./mcc_generated_files/mcc.h" 2
+
 # 1 "./mcc_generated_files/i2c1_master.h" 1
 # 58 "./mcc_generated_files/i2c1_master.h"
 typedef enum {
@@ -21060,7 +21063,7 @@ void I2C1_SetAddressNackCallback(i2c1_callback_t cb, void *ptr);
 void I2C1_SetDataNackCallback(i2c1_callback_t cb, void *ptr);
 # 204 "./mcc_generated_files/i2c1_master.h"
 void I2C1_SetTimeoutCallback(i2c1_callback_t cb, void *ptr);
-# 55 "./mcc_generated_files/mcc.h" 2
+# 56 "./mcc_generated_files/mcc.h" 2
 
 # 1 "./mcc_generated_files/tmr1.h" 1
 # 100 "./mcc_generated_files/tmr1.h"
@@ -21079,9 +21082,15 @@ void TMR1_Reload(void);
 void TMR1_StartSinglePulseAcquisition(void);
 # 349 "./mcc_generated_files/tmr1.h"
 uint8_t TMR1_CheckGateValueStatus(void);
-# 387 "./mcc_generated_files/tmr1.h"
-_Bool TMR1_HasOverflowOccured(void);
-# 56 "./mcc_generated_files/mcc.h" 2
+# 367 "./mcc_generated_files/tmr1.h"
+void TMR1_ISR(void);
+# 385 "./mcc_generated_files/tmr1.h"
+ void TMR1_SetInterruptHandler(void (* InterruptHandler)(void));
+# 403 "./mcc_generated_files/tmr1.h"
+extern void (*TMR1_InterruptHandler)(void);
+# 421 "./mcc_generated_files/tmr1.h"
+void TMR1_DefaultInterruptHandler(void);
+# 57 "./mcc_generated_files/mcc.h" 2
 
 # 1 "./mcc_generated_files/adcc.h" 1
 # 72 "./mcc_generated_files/adcc.h"
@@ -21148,12 +21157,12 @@ _Bool ADCC_HasErrorCrossedUpperThreshold(void);
 _Bool ADCC_HasErrorCrossedLowerThreshold(void);
 # 823 "./mcc_generated_files/adcc.h"
 uint8_t ADCC_GetConversionStageStatus(void);
-# 57 "./mcc_generated_files/mcc.h" 2
-# 72 "./mcc_generated_files/mcc.h"
+# 58 "./mcc_generated_files/mcc.h" 2
+# 73 "./mcc_generated_files/mcc.h"
 void SYSTEM_Initialize(void);
-# 85 "./mcc_generated_files/mcc.h"
+# 86 "./mcc_generated_files/mcc.h"
 void OSCILLATOR_Initialize(void);
-# 98 "./mcc_generated_files/mcc.h"
+# 99 "./mcc_generated_files/mcc.h"
 void PMD_Initialize(void);
 # 44 "main.c" 2
 
@@ -21192,6 +21201,12 @@ int LCDbusy(void);
 void LCDpos(unsigned char l, unsigned char c);
 # 49 "main.c" 2
 # 60 "main.c"
+volatile _Bool one_second = 0;
+
+void Timer1(void){
+    one_second = 1;
+}
+
 unsigned char readTC74 (void)
 {
  unsigned char value;
@@ -21246,7 +21261,13 @@ void main(void)
 
 
     SYSTEM_Initialize();
-# 130 "main.c"
+
+    (INTCONbits.GIE = 1);
+
+    (INTCONbits.PEIE = 1);
+
+    TMR1_SetInterruptHandler(Timer1);
+
     OpenI2C();
 
 
@@ -21255,76 +21276,75 @@ void main(void)
 
     LCDinit();
 
-
-
     while (1)
     {
 
-        LCDcmd(0x80);
+        if(one_second){
 
-        sprintf(time_buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+            LCDcmd(0x80);
 
-        LCDstr(time_buffer);
+            sprintf(time_buffer, "%02d:%02d:%02d", hours, minutes, seconds);
 
-        count++;
+            LCDstr(time_buffer);
 
-        if(count == PMON){
+            count++;
 
-            temperature = readTC74();
-            luminosity = ADCC_GetSingleConversion(0x0) >> 8;
+            if(count == PMON){
 
-
-            LCDcmd(0xc0);
-            sprintf(measure_buffer, "%02d C ", temperature);
-            while (LCDbusy());
-            LCDstr(measure_buffer);
+                temperature = readTC74();
+                luminosity = ADCC_GetSingleConversion(0x0) >> 8;
 
 
-            LCDpos(1,14);
-            sprintf(measure_buffer, "L%d", luminosity);
-            while (LCDbusy());
-            LCDstr(measure_buffer);
+                LCDcmd(0xc0);
+                sprintf(measure_buffer, "%02d C ", temperature);
+                while (LCDbusy());
+                LCDstr(measure_buffer);
 
 
-            count = 0;
-        }
-
-        if(ALAF) {
-
-            LCDpos(0,15);
-            LCDstr("A");
-
-            LCDpos(0,11);
-            if(hours == ALAH && minutes == ALAM && seconds == ALAS)
-                LCDstr("C");
-
-            LCDpos(0,12);
-            if(temperature > ALAT)
-                LCDstr("T");
-            else
-                LCDstr(" ");
-
-            LCDpos(0,13);
-            if(luminosity > ALAL)
-                LCDstr("L");
-            else
-                LCDstr(" ");
-        }
+                LCDpos(1,14);
+                sprintf(measure_buffer, "L%d", luminosity);
+                while (LCDbusy());
+                LCDstr(measure_buffer);
 
 
-
-        _delay((unsigned long)((1000)*(1000000/4000.0)));
-
-        if(seconds < 59)
-            seconds++;
-        else{
-            seconds=0;
-            if(minutes < 59)
-                minutes++;
-            else{
-                minutes=0;
-                hours++;
+                count = 0;
             }
+
+            if(ALAF) {
+
+                LCDpos(0,15);
+                LCDstr("A");
+
+                LCDpos(0,11);
+                if(hours == ALAH && minutes == ALAM && seconds == ALAS)
+                    LCDstr("C");
+
+                LCDpos(0,12);
+                if(temperature > ALAT)
+                    LCDstr("T");
+                else
+                    LCDstr(" ");
+
+                LCDpos(0,13);
+                if(luminosity > ALAL)
+                    LCDstr("L");
+                else
+                    LCDstr(" ");
+            }
+
+            if(seconds < 59)
+                seconds++;
+            else{
+                seconds=0;
+                if(minutes < 59)
+                    minutes++;
+                else{
+                    minutes=0;
+                    hours++;
+                }
+            }
+
+            one_second = 0;
         }
     }
 }
