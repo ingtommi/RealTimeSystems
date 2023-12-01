@@ -25,7 +25,7 @@
 
 #pragma config ZCD = OFF
 
-#pragma config PPS1WAY = ON
+#pragma config PPS1WAY = OFF
 #pragma config STVREN = ON
 #pragma config DEBUG = OFF
 

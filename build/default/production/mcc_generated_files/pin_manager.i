@@ -20819,9 +20819,9 @@ extern __bank0 __bit __powerdown;
 extern __bank0 __bit __timeout;
 # 29 "/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/xc.h" 2 3
 # 54 "mcc_generated_files/pin_manager.h" 2
-# 102 "mcc_generated_files/pin_manager.h"
+# 174 "mcc_generated_files/pin_manager.h"
 void PIN_MANAGER_Initialize (void);
-# 114 "mcc_generated_files/pin_manager.h"
+# 186 "mcc_generated_files/pin_manager.h"
 void PIN_MANAGER_IOC(void);
 # 49 "mcc_generated_files/pin_manager.c" 2
 
@@ -20845,7 +20845,7 @@ void PIN_MANAGER_Initialize(void)
 
 
     TRISE = 0x07;
-    TRISA = 0xFF;
+    TRISA = 0x0F;
     TRISB = 0xFF;
     TRISC = 0xFF;
     TRISD = 0xFF;
@@ -20898,6 +20898,7 @@ void PIN_MANAGER_Initialize(void)
     SSP1CLKPPS = 0x13;
     RC3PPS = 0x14;
     RC4PPS = 0x15;
+    RA6PPS = 0x0E;
     SSP1DATPPS = 0x14;
 }
 

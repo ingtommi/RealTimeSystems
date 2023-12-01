@@ -22,7 +22,7 @@ Version 4.0 HI-TECH Software Intermediate Code
 "65
 [p x ZCD  =  OFF     ]
 "67
-[p x PPS1WAY  =  ON     ]
+[p x PPS1WAY  =  OFF     ]
 "68
 [p x STVREN  =  ON     ]
 "69

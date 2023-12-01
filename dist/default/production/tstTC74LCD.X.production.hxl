@@ -1,30 +1,32 @@
 ### HEXMate logfile and output summary ###
 
 ### Command-line arguments ###
- /tmp/xcXgInLNd/driver_tmp_3.o
+ /tmp/xcXfkJgbD/driver_tmp_3.o
  -Odist/default/production/tstTC74LCD.X.production.hex
  -logfile=dist/default/production/tstTC74LCD.X.production.hxl
  -addressing=2
 
 ### Memory Usage ###
  Input file ranges:
-  0h - FFFh		(/tmp/xcXgInLNd/driver_tmp_3.o)
-  1A16h - 2085h		(/tmp/xcXgInLNd/driver_tmp_3.o)
-  10000h - 10007h		(/tmp/xcXgInLNd/driver_tmp_3.o)
-  1000Eh - 10017h		(/tmp/xcXgInLNd/driver_tmp_3.o)
+  0h - 3h		(/tmp/xcXfkJgbD/driver_tmp_3.o)
+  6h - FFFh		(/tmp/xcXfkJgbD/driver_tmp_3.o)
+  1A1Ch - 2085h		(/tmp/xcXfkJgbD/driver_tmp_3.o)
+  10000h - 10007h		(/tmp/xcXfkJgbD/driver_tmp_3.o)
+  1000Eh - 10017h		(/tmp/xcXfkJgbD/driver_tmp_3.o)
  Unused ranges:
-  1000h - 1A15h
+  4h - 5h
+  1000h - 1A1Bh
   2086h - FFFFh
   10008h - 1000Dh
 
 ### Hex Memory Map ###
  Legend:
   -- = Unused memory
-  H1 = Input file             (/tmp/xcXgInLNd/driver_tmp_3.o)
+  H1 = Input file             (/tmp/xcXfkJgbD/driver_tmp_3.o)
 ----------------------------------------------------------
          | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
 ----------------------------------------------------------
-00000000 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
+00000000 | H1 H1 H1 H1 -- -- H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000010 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000020 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000030 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
@@ -281,7 +283,7 @@
 00000FE0 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000FF0 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 ----------------------------------------------------------
-00001A10 | -- -- -- -- -- -- H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
+00001A10 | -- -- -- -- -- -- -- -- -- -- -- -- H1 H1 H1 H1
 00001A20 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00001A30 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00001A40 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1

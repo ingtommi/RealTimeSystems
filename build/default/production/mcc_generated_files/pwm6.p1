@@ -1,61 +1,28 @@
 Version 4.0 HI-TECH Software Intermediate Code
-"101 mcc_generated_files/mcc.h
-[; ;mcc_generated_files/mcc.h: 101: void PMD_Initialize(void);
-[v _PMD_Initialize `(v ~T0 @X0 0 ef ]
-"89 mcc_generated_files/i2c1_master.h
-[; ;mcc_generated_files/i2c1_master.h: 89: void I2C1_Initialize(void);
-[v _I2C1_Initialize `(v ~T0 @X0 0 ef ]
-"174 mcc_generated_files/pin_manager.h
-[; ;mcc_generated_files/pin_manager.h: 174: void PIN_MANAGER_Initialize (void);
-[v _PIN_MANAGER_Initialize `(v ~T0 @X0 0 ef ]
-"88 mcc_generated_files/mcc.h
-[; ;mcc_generated_files/mcc.h: 88: void OSCILLATOR_Initialize(void);
-[v _OSCILLATOR_Initialize `(v ~T0 @X0 0 ef ]
-"102 mcc_generated_files/pwm6.h
-[; ;mcc_generated_files/pwm6.h: 102:  void PWM6_Initialize(void);
-[v _PWM6_Initialize `(v ~T0 @X0 0 ef ]
-"126 mcc_generated_files/adcc.h
-[; ;mcc_generated_files/adcc.h: 126: void ADCC_Initialize(void);
-[v _ADCC_Initialize `(v ~T0 @X0 0 ef ]
-"336 mcc_generated_files/tmr2.h
-[; ;mcc_generated_files/tmr2.h: 336: void TMR2_Initialize(void);
-[v _TMR2_Initialize `(v ~T0 @X0 0 ef ]
-"100 mcc_generated_files/tmr1.h
-[; ;mcc_generated_files/tmr1.h: 100: void TMR1_Initialize(void);
-[v _TMR1_Initialize `(v ~T0 @X0 0 ef ]
-"23463 /home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 23463: extern volatile unsigned char OSCCON1 __attribute__((address(0x88D)));
-[v _OSCCON1 `Vuc ~T0 @X0 0 e@2189 ]
-"23603
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 23603: extern volatile unsigned char OSCCON3 __attribute__((address(0x88F)));
-[v _OSCCON3 `Vuc ~T0 @X0 0 e@2191 ]
-"23700
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 23700: extern volatile unsigned char OSCEN __attribute__((address(0x891)));
-[v _OSCEN `Vuc ~T0 @X0 0 e@2193 ]
-"23809
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 23809: extern volatile unsigned char OSCFRQ __attribute__((address(0x893)));
-[v _OSCFRQ `Vuc ~T0 @X0 0 e@2195 ]
-"23751
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 23751: extern volatile unsigned char OSCTUNE __attribute__((address(0x892)));
-[v _OSCTUNE `Vuc ~T0 @X0 0 e@2194 ]
-"22112
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 22112: extern volatile unsigned char PMD0 __attribute__((address(0x796)));
-[v _PMD0 `Vuc ~T0 @X0 0 e@1942 ]
-"22169
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 22169: extern volatile unsigned char PMD1 __attribute__((address(0x797)));
-[v _PMD1 `Vuc ~T0 @X0 0 e@1943 ]
-"22240
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 22240: extern volatile unsigned char PMD2 __attribute__((address(0x798)));
-[v _PMD2 `Vuc ~T0 @X0 0 e@1944 ]
-"22285
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 22285: extern volatile unsigned char PMD3 __attribute__((address(0x799)));
-[v _PMD3 `Vuc ~T0 @X0 0 e@1945 ]
-"22341
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 22341: extern volatile unsigned char PMD4 __attribute__((address(0x79A)));
-[v _PMD4 `Vuc ~T0 @X0 0 e@1946 ]
-"22392
-[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 22392: extern volatile unsigned char PMD5 __attribute__((address(0x79B)));
-[v _PMD5 `Vuc ~T0 @X0 0 e@1947 ]
+"12559 /home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h
+[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 12559: extern volatile unsigned char PWM6CON __attribute__((address(0x38E)));
+[v _PWM6CON `Vuc ~T0 @X0 0 e@910 ]
+"12389
+[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 12389: extern volatile unsigned char PWM6DCH __attribute__((address(0x38D)));
+[v _PWM6DCH `Vuc ~T0 @X0 0 e@909 ]
+"12323
+[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 12323: extern volatile unsigned char PWM6DCL __attribute__((address(0x38C)));
+[v _PWM6DCL `Vuc ~T0 @X0 0 e@908 ]
+"9287
+[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 9287:     struct {
+[s S414 :2 `uc 1 :2 `uc 1 :2 `uc 1 ]
+[n S414 . C5TSEL P6TSEL P7TSEL ]
+"9292
+[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 9292:     struct {
+[s S415 :1 `uc 1 :1 `uc 1 :1 `uc 1 :1 `uc 1 :1 `uc 1 :1 `uc 1 ]
+[n S415 . C5TSEL0 C5TSEL1 P6TSEL0 P6TSEL1 P7TSEL0 P7TSEL1 ]
+"9286
+[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 9286: typedef union {
+[u S413 `S414 1 `S415 1 ]
+[n S413 . . . ]
+"9301
+[; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 9301: extern volatile CCPTMRS1bits_t CCPTMRS1bits __attribute__((address(0x21F)));
+[v _CCPTMRS1bits `VS413 ~T0 @X0 0 e@543 ]
 "55 /home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h
 [; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 55: __asm("INDF0 equ 00h");
 [; <" INDF0 equ 00h ;# ">
@@ -1694,96 +1661,50 @@ Version 4.0 HI-TECH Software Intermediate Code
 "36501
 [; ;/home/tfachada/.mchp_packs/Microchip/PIC16F1xxxx_DFP/1.7.146/xc8/pic/include/proc/pic16f18875.h: 36501: __asm("TOSH equ 0FEFh");
 [; <" TOSH equ 0FEFh ;# ">
-"50 mcc_generated_files/mcc.c
-[; ;mcc_generated_files/mcc.c: 50: void SYSTEM_Initialize(void)
-[v _SYSTEM_Initialize `(v ~T0 @X0 1 ef ]
-"51
-[; ;mcc_generated_files/mcc.c: 51: {
-{
-[e :U _SYSTEM_Initialize ]
-[f ]
-"52
-[; ;mcc_generated_files/mcc.c: 52:     PMD_Initialize();
-[e ( _PMD_Initialize ..  ]
-"53
-[; ;mcc_generated_files/mcc.c: 53:     I2C1_Initialize();
-[e ( _I2C1_Initialize ..  ]
-"54
-[; ;mcc_generated_files/mcc.c: 54:     PIN_MANAGER_Initialize();
-[e ( _PIN_MANAGER_Initialize ..  ]
-"55
-[; ;mcc_generated_files/mcc.c: 55:     OSCILLATOR_Initialize();
-[e ( _OSCILLATOR_Initialize ..  ]
-"56
-[; ;mcc_generated_files/mcc.c: 56:     PWM6_Initialize();
-[e ( _PWM6_Initialize ..  ]
-"57
-[; ;mcc_generated_files/mcc.c: 57:     ADCC_Initialize();
-[e ( _ADCC_Initialize ..  ]
-"58
-[; ;mcc_generated_files/mcc.c: 58:     TMR2_Initialize();
-[e ( _TMR2_Initialize ..  ]
+"58 mcc_generated_files/pwm6.c
+[; ;mcc_generated_files/pwm6.c: 58:  void PWM6_Initialize(void)
+[v _PWM6_Initialize `(v ~T0 @X0 1 ef ]
 "59
-[; ;mcc_generated_files/mcc.c: 59:     TMR1_Initialize();
-[e ( _TMR1_Initialize ..  ]
-"60
-[; ;mcc_generated_files/mcc.c: 60: }
-[e :UE 1622 ]
-}
+[; ;mcc_generated_files/pwm6.c: 59:  {
+{
+[e :U _PWM6_Initialize ]
+[f ]
 "62
-[; ;mcc_generated_files/mcc.c: 62: void OSCILLATOR_Initialize(void)
-[v _OSCILLATOR_Initialize `(v ~T0 @X0 1 ef ]
-"63
-[; ;mcc_generated_files/mcc.c: 63: {
-{
-[e :U _OSCILLATOR_Initialize ]
-[f ]
+[; ;mcc_generated_files/pwm6.c: 62:     PWM6CON = 0x80;
+[e = _PWM6CON -> -> 128 `i `uc ]
 "65
-[; ;mcc_generated_files/mcc.c: 65:     OSCCON1 = 0x62;
-[e = _OSCCON1 -> -> 98 `i `uc ]
-"67
-[; ;mcc_generated_files/mcc.c: 67:     OSCCON3 = 0x00;
-[e = _OSCCON3 -> -> 0 `i `uc ]
-"69
-[; ;mcc_generated_files/mcc.c: 69:     OSCEN = 0x00;
-[e = _OSCEN -> -> 0 `i `uc ]
+[; ;mcc_generated_files/pwm6.c: 65:     PWM6DCH = 0x7F;
+[e = _PWM6DCH -> -> 127 `i `uc ]
+"68
+[; ;mcc_generated_files/pwm6.c: 68:     PWM6DCL = 0xC0;
+[e = _PWM6DCL -> -> 192 `i `uc ]
 "71
-[; ;mcc_generated_files/mcc.c: 71:     OSCFRQ = 0x02;
-[e = _OSCFRQ -> -> 2 `i `uc ]
-"73
-[; ;mcc_generated_files/mcc.c: 73:     OSCTUNE = 0x00;
-[e = _OSCTUNE -> -> 0 `i `uc ]
-"74
-[; ;mcc_generated_files/mcc.c: 74: }
-[e :UE 1623 ]
+[; ;mcc_generated_files/pwm6.c: 71:     CCPTMRS1bits.P6TSEL = 1;
+[e = . . _CCPTMRS1bits 0 1 -> -> 1 `i `uc ]
+"72
+[; ;mcc_generated_files/pwm6.c: 72:  }
+[e :UE 1620 ]
 }
-"76
-[; ;mcc_generated_files/mcc.c: 76: void PMD_Initialize(void)
-[v _PMD_Initialize `(v ~T0 @X0 1 ef ]
-"77
-[; ;mcc_generated_files/mcc.c: 77: {
+"74
+[; ;mcc_generated_files/pwm6.c: 74:  void PWM6_LoadDutyValue(uint16_t dutyValue)
+[v _PWM6_LoadDutyValue `(v ~T0 @X0 1 ef1`us ]
+"75
+[; ;mcc_generated_files/pwm6.c: 75:  {
 {
-[e :U _PMD_Initialize ]
+[e :U _PWM6_LoadDutyValue ]
+"74
+[; ;mcc_generated_files/pwm6.c: 74:  void PWM6_LoadDutyValue(uint16_t dutyValue)
+[v _dutyValue `us ~T0 @X0 1 r1 ]
+"75
+[; ;mcc_generated_files/pwm6.c: 75:  {
 [f ]
-"79
-[; ;mcc_generated_files/mcc.c: 79:     PMD0 = 0x00;
-[e = _PMD0 -> -> 0 `i `uc ]
+"77
+[; ;mcc_generated_files/pwm6.c: 77:      PWM6DCH = (dutyValue & 0x03FC)>>2;
+[e = _PWM6DCH -> >> & -> _dutyValue `ui -> -> 1020 `i `ui -> 2 `i `uc ]
+"80
+[; ;mcc_generated_files/pwm6.c: 80:      PWM6DCL = (dutyValue & 0x0003)<<6;
+[e = _PWM6DCL -> << & -> _dutyValue `ui -> -> 3 `i `ui -> 6 `i `uc ]
 "81
-[; ;mcc_generated_files/mcc.c: 81:     PMD1 = 0x00;
-[e = _PMD1 -> -> 0 `i `uc ]
-"83
-[; ;mcc_generated_files/mcc.c: 83:     PMD2 = 0x00;
-[e = _PMD2 -> -> 0 `i `uc ]
-"85
-[; ;mcc_generated_files/mcc.c: 85:     PMD3 = 0x00;
-[e = _PMD3 -> -> 0 `i `uc ]
-"87
-[; ;mcc_generated_files/mcc.c: 87:     PMD4 = 0x00;
-[e = _PMD4 -> -> 0 `i `uc ]
-"89
-[; ;mcc_generated_files/mcc.c: 89:     PMD5 = 0x00;
-[e = _PMD5 -> -> 0 `i `uc ]
-"90
-[; ;mcc_generated_files/mcc.c: 90: }
-[e :UE 1624 ]
+[; ;mcc_generated_files/pwm6.c: 81:  }
+[e :UE 1621 ]
 }
