@@ -22,6 +22,12 @@
 #define TALA 5
 #define NREC 4
 
+typedef enum 
+{ 
+	NORMAL, 
+	CONFIG 
+} mode;
+
 unsigned char temperature;
 unsigned char luminosity;
 
@@ -38,12 +44,21 @@ uint8_t pwm_count = 0;
 // Flags
 volatile bool sample = false;
 bool alarm = false;
+volatile bool s1_pressed, s2_pressed = false;
 
 // Functions
 void TMR1_IRQ (void);
+void buttonsIRQ (void);
+
+void normal_mode (void);
+void config_mode (void);
+
 void alarm_handler (void);
 unsigned char readTC74 (void);
-void normal_mode (void);
+void clear_alarm (void);
+void show_records (void);
+void move_cursor (void);  // should take current position and return incremented position
+void modify_field (void); // should take current position
 
 void main (void)
 {	 
@@ -55,24 +70,86 @@ void main (void)
 	// Interrupt configuration
 	INTERRUPT_GlobalInterruptEnable();
 	INTERRUPT_PeripheralInterruptEnable();
-	TMR1_SetInterruptHandler(TMR1_IRQ);
+	TMR1_SetInterruptHandler(TMR1_IRQ);     // timer 1
+	IOCBF4_SetInterruptHandler(buttonsIRQ); // button S1
+	IOCCF5_SetInterruptHandler(buttonsIRQ); // button S2
+	
+	// Start in NORMAL mode
+	mode = NORMAL;
 	
 	//RA6_SetLow(); // debug
 
 	while (1)
 	{
 		// Show clock
-		LCDcmd(0x80); // first line, first column
+		LCDcmd(0x80);            // move to first line, first column
 		//sprintf(time_buffer, "%02d:%02d:%02d", hours, minutes, seconds);
     sprintf(time_buffer, "%02d:%02d:%02d", hours, minutes, seconds-1);
 		LCDstr(time_buffer);
 		
-		// ---------- NORMAL MODE ----------
-		normal_mode();
+		switch(mode)
+		{
+			case NORMAL:
+				
+				normal_mode();        // read sensors, show values and manage alarm
+				
+				if (s1_pressed)
+				// Clear alarm and keep mode or change it
+				{
+					__delay_ms(100);    // debouncing
+					s1_pressed = false; // clear button flag
+					// check alarm flag
+					if (alarm) 
+					{
+						clear_alarm();    // call function
+						mode = NORMAL;    // keep mode
+					}
+					else
+						mode = CONFIG;    // change mode
+				}
+				
+				else if (s2_pressed)
+				// Show records and keep mode
+				{
+					__delay_ms(100);    // debouncing
+					s2_pressed = false; // clear button flag
+					show_records();     // call function
+					mode = NORMAL;      // keep mode
+				}
+			  break;
+			
+			case CONFIG:
+			
+			  config_mode();        // show thresholds
+			
+				if (s1_pressed) 
+			  // Move cursor and keep/change mode
+			  { 
+				  __delay_ms(100);    // debouncing
+					s1_pressed = false; // clear button flag
+				  move_cursor();      // call function [increment position and return it]
+				  if (cursor_end)
+					  mode = NORMAL;    // keep mode [cursor end is LCDpos(1,15)]
+				  else
+					  mode = CONFIG;    // change mode
+				  s1_pressed = false; // clear flag
+			  }
+				
+				else if (s2_pressed)
+				// Modify field and keep mode
+				{
+				  __delay_ms(100);    // debouncing
+					s2_pressed = false; // clear button flag
+					modify_field();     // call function
+					mode = CONFIG;      // keep mode
+				}
+				break;
+				
+				//TODO: go to SLEEP()
 	}
 }
 
-// ---- CLOCK ----
+// ---- INTERRUPTS ----
 
 // TMR1 interrupt handler
 void TMR1_IRQ (void) 
@@ -104,19 +181,29 @@ void TMR1_IRQ (void)
 	}
 }
 
+// S1/S2 interrupt handler
+void buttonsIRQ(void)
+{
+	// Check which button was pressed
+	if (S1_GetValue() == LOW)
+		s1_pressed = true;
+	else
+		s2_pressed = true;
+}
+
 // ---- NORMAL MODE ----
 
-// Condition true every PMON s
 void normal_mode (void)
 {
-	if (sample)
+	// Condition true every PMON s
+	if (sample)                                         
 	{
 		// Sensor readings
 		temperature = readTC74();
 		luminosity = ADCC_GetSingleConversion(0x0) >> 8;
 
 		// Temperature output
-		LCDcmd(0xc0);									                    // second line, first column
+		LCDcmd(0xc0);									                    // move to second line, first column
 		sprintf(measure_buffer, "%02d C ", temperature);  // extra space written to clear buffer if we lose one digit
 		while (LCDbusy());
 		LCDstr(measure_buffer);
@@ -151,8 +238,7 @@ void normal_mode (void)
 		if (temperature > ALAT)	 
 		{
 			LCDstr("T");
-			// Turn on led D3
-			IO_RA5_SetHigh();
+			IO_RA5_SetHigh(); // turn on T
 			alarm_handler();
 		}
 
@@ -161,12 +247,11 @@ void normal_mode (void)
 		if (luminosity > ALAL)	 
 		{	
 			LCDstr("L");
-			// Turn on led D2
-			IO_RA4_SetHigh();
+			IO_RA4_SetHigh(); // turn on L
 			alarm_handler();
 		}
 		
-		// Alarm LED is on for TALA s
+		// A is on for TALA s
 		if (RA6_GetValue() == HIGH)
 		{
 			pwm_count++;
@@ -177,12 +262,12 @@ void normal_mode (void)
 			}
 		}
 	}
-	// Keep alarm LED off
+	// Keep A off
 	else
 		RA6_SetLow();
 }
 
-// Temperature sensor reading
+// Read temperature sensor
 unsigned char readTC74 (void)
 {
 	unsigned char value;
@@ -213,11 +298,31 @@ unsigned char readTC74 (void)
 	return value;
 }
 
-// Alarm handler
+// Manage alarm
 void alarm_handler (void) 
 {
-	// Set flag
-	alarm = true;
-	// Turn on alarm LED
-	RA6_SetHigh();
+	alarm = true;  // set alarm flag
+	RA6_SetHigh(); // turn on A
 }
+
+// Clear alarm
+void clear_alarm (void)
+{
+	alarm = false;    // clear alarm flag
+	IO_RA4_SetLow();  // turn off L
+	IO_RA5_SetLow();  // turn on T
+	LCDcmd(0x80);     // move to first line, first column
+	// Clear C character
+	LCDpos(0,11);
+	LCDstr(" ");
+	// Clear T character
+	LCDpos(0,12);
+	LCDstr(" ");
+	// Clear L character
+	LCDpos(0,13);
+	LCDstr(" ");
+}
+
+// ---- CONFIG MODE ----
+
+// TODO: define config_mode(), move_cursor(), modify_field()
