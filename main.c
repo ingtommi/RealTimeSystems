@@ -2,7 +2,8 @@
 #include "mcc_generated_files/tmr1.h"
 #include "mcc_generated_files/pin_manager.h"
 
-#include "stdio.h"
+#include <stdio.h>
+//#include <math.h>
 #include "../I2C/i2c.h"
 #include "../LCD/lcd.h"
 
@@ -21,7 +22,10 @@
 #define ALAL 2
 #define TALA 5
 #define NREC 4
-
+/* parameters needed to use TMR0 with period =! 5s
+#define PS    8192 // max period with 1:8192 PS is around 8.3 s
+#define FOSC4 64000000
+*/
 typedef enum 
 { 
     NORMAL, 
@@ -43,11 +47,10 @@ volatile uint8_t hours = CLKH, minutes = CLKM, seconds = 0;
 
 // Counters
 volatile uint8_t sec_count = PMON-1;
-uint8_t pwm_count = 0;
 
 // Flags
 volatile bool time_1s, time_sample = false;
-bool alarm, aled_on = false;
+bool alarm = false;
 volatile bool s1_pressed, s2_pressed = false;
 
 // Functions
@@ -71,15 +74,15 @@ uint8_t col = 1; // needed by modify_field_clk, works only if defined here
 void main (void)
 {	 
 	// Initialization
-	SYSTEM_Initialize(); // NOTE: TMR0 is disabled (T0CON0 = 0x09)
+	SYSTEM_Initialize(); // NOTE: TMR0 is disabled (T0CON0 = 0x00)
 	OpenI2C();
 	LCDinit();
 	
 	// Interrupt configuration
 	INTERRUPT_GlobalInterruptEnable();
 	INTERRUPT_PeripheralInterruptEnable();
-  TMR0_SetInterruptHandler(TMR0_IRQ);     // timer 0
-	TMR1_SetInterruptHandler(TMR1_IRQ);     // timer 1
+  TMR0_SetInterruptHandler(TMR0_IRQ);     // timer 0, period is 5 s
+	TMR1_SetInterruptHandler(TMR1_IRQ);     // timer 1, period is 1 s
   IOCBF4_SetInterruptHandler(buttonsIRQ); // button S1
 	IOCCF5_SetInterruptHandler(buttonsIRQ); // button S2
     
@@ -244,21 +247,6 @@ void normal_mode (void)
   char measure_buffer[MEASUREMENT_SIZE];
   
   banner();
-  
-  // Alarm LED is on for TALA s
-	if (aled_on)
-	{
-    if (time_1s)
-    {
-      pwm_count++;
-      if (pwm_count == TALA)
-      {
-        PWM6_LoadDutyValue(0);
-        aled_on = false;
-        pwm_count = 0;
-      }
-    }
-	}
     
 	if (time_sample)
 	{    
@@ -357,6 +345,10 @@ void alarm_handler (void)
 	alarm = true;
 	// Turn on alarm LED with 50% duty-cycle
   PWM6_LoadDutyValue(511);
+  /* Load TMR0 with a value corresponding to TALA s
+  uint8_t periodVal = round((FOSC4 * TALA) / (256 * PS)); // 153 if TALA = 5 s
+  TMR0_Reload(periodVal);
+  */
   // Enable TMR0 to count for 5 s
   TMR0_StartTimer();
 }
