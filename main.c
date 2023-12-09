@@ -11,6 +11,7 @@
 #define TIME_SIZE        8
 #define RECORD_SIZE     16
 
+// Configuration parameters
 #define PMON   3
 #define TALA   5
 #define NREC   4
@@ -29,17 +30,18 @@
 #define FOSC4 64000000
 */
 
+// Memory addresses
 #define MagicWord           0xAA     // Magic word to signal an address has been initialized
 #define EEMagicWordAddr     0xF000   // EEPROM address for magic word
 #define EEParamAddr         0xF001   // EEPROM starting address for 11 config parameters (same order as definitions)
 #define EERecordOffsetAddr  0xF00C   // EEPROM address for records offset
-#define EERecordAddr        0xF00D   // EEPROM starting address for the records (242 bytes -> maxNREC = 48)
+#define EERecordAddr        0xF00D   // EEPROM starting address for the records (242 bytes -> max nrec = 48)
 #define EEChecksumAddr      0xF0FF   // EEPROM address for the checksum (ONLY PARAMETERS AND OFFSET, OWN CHOICE)
 
 typedef enum 
 { 
-    NORMAL, 
-    CONFIG 
+  NORMAL, 
+  CONFIG 
 } modetype;
 
 typedef struct
@@ -62,29 +64,31 @@ bool alarm = false, magicSet = false;
 
 // Counters
 volatile uint8_t sec_count;
-uint8_t offset = OFFSET;
+uint8_t offset = OFFSET, lastOffset;
 
 // Functions
-void ParamInit (void);
+void resetMemory (void);
+void initParam (void);
 uint8_t getChecksum (void);
+void setMagicWord (void);
 
 static void TMR0_IRQ (void);
 static void TMR1_IRQ (void);
-static void buttonsIRQ (void);
+static void buttons_IRQ (void);
 
 void banner (void);
 
-void normal_mode (void);
-void alarm_handler (void);
-void clear_alarm (void);
+void modeNormal (void);
+void alarmHandle (void);
+void alarmClear (void);
 unsigned char readTC74 (void);
-void save_records (uint8_t temperature, uint8_t luminosity);
-void show_records (void);
+void recordSave (uint8_t temperature, uint8_t luminosity);
+void recordShow (void);
 
-void config_mode (LCDposition *pos);
-void modify_field (LCDposition *pos);
-void modify_field_clk (void);
-uint8_t col = 1; // needed by modify_field_clk, works only if defined here
+void modeConfig (LCDposition *pos);
+void modifyField (LCDposition *pos);
+void modifyField_clk (void);
+uint8_t col = 1; // needed by modifyField_clk, works only if defined here
 
 void main (void)
 {	 
@@ -93,23 +97,25 @@ void main (void)
   TMR0_StopTimer();
 	OpenI2C();
 	LCDinit();
-  ParamInit();
+  resetMemory(); // possibility to clear memory and restart everything from default
+  initParam();   // read from memory if consistente state
 	
 	// Interrupt configuration
 	INTERRUPT_GlobalInterruptEnable();
 	INTERRUPT_PeripheralInterruptEnable();
   TMR0_SetInterruptHandler(TMR0_IRQ);     // timer 0, period is 5 s
 	TMR1_SetInterruptHandler(TMR1_IRQ);     // timer 1, period is 1 s
-  IOCBF4_SetInterruptHandler(buttonsIRQ); // button S1
-	IOCCF5_SetInterruptHandler(buttonsIRQ); // button S2
-  
-  sec_count = pmon - 1;
+  IOCBF4_SetInterruptHandler(buttons_IRQ); // button S1
+	IOCCF5_SetInterruptHandler(buttons_IRQ); // button S2
     
   // Start in NORMAL mode
   modetype mode = NORMAL;
   
   // Start cursor from the beginning
   LCDposition pos = {0, 0};
+  
+  // Read sensor for first time after only 1 s
+  sec_count = pmon - 1;
 
 	while (1)
 	{	
@@ -117,7 +123,7 @@ void main (void)
 		{
 			case NORMAL:
 				
-				normal_mode();                               // read sensors, show values and manage alarm
+				modeNormal();                               // read sensors, show values and manage alarm
 				
 				if (s1_pressed)                                  // check S1
 				// Clear alarm and keep mode or change it
@@ -133,7 +139,7 @@ void main (void)
 					}
 					else                                             // otherwise
           {
-						clear_alarm();
+						alarmClear();
             //mode = NORMAL;
 				  }
         }
@@ -143,14 +149,14 @@ void main (void)
 				{
 					__delay_ms(100);                                 // debouncing
 					s2_pressed = false;                              // clear button flag
-					show_records();                                  // call function
+					recordShow();                                  // call function
 					//mode = NORMAL;                                 // keep mode
 				}
         break;
 			
 			case CONFIG:
 			
-			  config_mode(&pos);                           // show thresholds
+			  modeConfig(&pos);                           // show thresholds
         
         // Move cursor back to right position
 				LCDpos(pos.row, pos.column);
@@ -179,7 +185,7 @@ void main (void)
 				{
 				  __delay_ms(100);                             // debouncing
 					s2_pressed = false;                          // clear button flag
-					modify_field(&pos);                          // call function
+					modifyField(&pos);                          // call function
 					//mode = CONFIG;                             // keep mode
 				}
 			  break;
@@ -189,7 +195,16 @@ void main (void)
 
 // ---- MEMORY ----
 
-void ParamInit (void)
+void resetMemory (void)
+{
+  if ((ADCC_GetSingleConversion(0x0) >> 8) == 3) // check if potentiometer in position 3
+  {
+    for (uint16_t dataAddr = EEMagicWordAddr; dataAddr < EEChecksumAddr; dataAddr++)
+      DATAEE_WriteByte(dataAddr, 0xFF);
+  } 
+}
+
+void initParam (void)
 {
   if (DATAEE_ReadByte(EEMagicWordAddr) == MagicWord)
   {
@@ -201,10 +216,10 @@ void ParamInit (void)
       if (pmon == 0xFF) pmon = PMON;
       
       tala = DATAEE_ReadByte(EEParamAddr + 1);
-      if (tala == 0xFF) alam = TALA;
+      if (tala == 0xFF) tala = TALA;
       
       nrec = DATAEE_ReadByte(EEParamAddr + 2);
-      if (nrec == 0xFF) alam = NREC;
+      if (nrec == 0xFF) nrec = NREC;
       
       alaf = DATAEE_ReadByte(EEParamAddr + 3);
       if (alaf == 0xFF) alaf = ALAF;
@@ -240,11 +255,19 @@ uint8_t getChecksum (void)
 {
   uint8_t checksum = 0;
   
-  for (uint16_t dataAddr = EEParamAddr; dataAddr < EERecordAddr; dataAddr++)
-  {
+  for (uint16_t dataAddr = EEParamAddr; dataAddr < EERecordAddr; dataAddr++) // no checksum for records
     checksum += DATAEE_ReadByte(dataAddr);
-  }
+    
   return checksum;
+}
+
+void setMagicWord (void)
+{
+  if (!magicSet)
+  {
+    magicSet = true;
+    DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
+  }
 }
 
 // ---- INTERRUPTS ----
@@ -273,11 +296,7 @@ static void TMR1_IRQ (void)
       minutes++;
       DATAEE_WriteByte(EEParamAddr + 10, minutes);
       DATAEE_WriteByte(EEChecksumAddr, getChecksum());
-      if (!magicSet)
-      {
-        magicSet = true;
-        DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
-      }
+      setMagicWord();
     }
 		else
 		{
@@ -286,6 +305,7 @@ static void TMR1_IRQ (void)
       DATAEE_WriteByte(EEParamAddr + 9, hours);
       DATAEE_WriteByte(EEParamAddr + 10, minutes);
       DATAEE_WriteByte(EEChecksumAddr, getChecksum());
+      // No need to set magic word, it will be set first by the minutes
 		}
 	}
   // Set flags
@@ -297,7 +317,7 @@ static void TMR1_IRQ (void)
 }
 
 // S1/S2 interrupt handler
-static void buttonsIRQ (void)
+static void buttons_IRQ (void)
 {
 	// Check which button was pressed
 	if (IOCBFbits.IOCBF4)
@@ -327,12 +347,11 @@ void banner (void)
 
 // ---- NORMAL MODE ----
 
-// Condition true every PMON s
- void normal_mode (void)
+// Condition true every pmon s
+ void modeNormal (void)
 {
   unsigned char temperature;
   unsigned char luminosity;
-  uint8_t lastOffset;
   
   char measure_buffer[MEASUREMENT_SIZE];
   
@@ -345,11 +364,11 @@ void banner (void)
     
 		// Sensor readings
 		//temperature = readTC74();
-    temperature = 20; //DEBUG: ignore sensor, probably broken
+    temperature = 20; //DEBUG: exclude sensor
 		luminosity = ADCC_GetSingleConversion(0x0) >> 8;
     
     // Save record
-    save_records(temperature, luminosity);
+    recordSave(temperature, luminosity);
    
 		// Temperature output
 		LCDcmd(0xc0);									  
@@ -373,7 +392,7 @@ void banner (void)
       LCDpos(0,11);
       while (LCDbusy());
 			LCDstr("C");
-			alarm_handler();
+			alarmHandle();
 		}
 		// Check temperature alarm
 		if (temperature > alat)	 
@@ -383,7 +402,7 @@ void banner (void)
 			LCDstr("T");
 			// Turn on led D3
 			T_SetHigh();
-			alarm_handler();
+			alarmHandle();
 		}
 		// Check luminosity alarm
 		if (luminosity > alal)	 
@@ -393,7 +412,7 @@ void banner (void)
 			LCDstr("L");
 			// Turn on led D2
 			L_SetHigh();
-			alarm_handler();
+			alarmHandle();
 		}
 	}
   // Keep cursor in first position
@@ -432,14 +451,14 @@ unsigned char readTC74 (void)
 }
 
 // Manage alarm
-void alarm_handler (void) 
+void alarmHandle (void) 
 {
 	// Set alarm flag
 	alarm = true;
 	// Turn on alarm LED with 50% duty-cycle
   PWM6_LoadDutyValue(511);
-  /* Load TMR0 with a value corresponding to TALA s
-  uint8_t periodVal = round((FOSC4 * TALA) / (256 * PS)); // 153 if TALA = 5 s
+  /* Load TMR0 with a value corresponding to tala s
+  uint8_t periodVal = round((FOSC4 * tala) / (256 * PS)); // 153 if tala = TALA
   TMR0_Reload(periodVal);
   */
   // Enable TMR0 to count for 5 s
@@ -447,7 +466,7 @@ void alarm_handler (void)
 }
 
 // Clear alarm
-void clear_alarm (void)
+void alarmClear (void)
 {
   // Turn off alarm LEDs
 	L_SetLow();
@@ -461,49 +480,54 @@ void clear_alarm (void)
 }
 
 // Save records saved in EEPROM
-void save_records (uint8_t temperature, uint8_t luminosity)
+void recordSave (uint8_t temperature, uint8_t luminosity)
 {
-  uint8_t lastOffset;
+  lastOffset = (offset == 0) ? 5 * (nrec - 1) : offset - 5;
   
-  if (!magicSet) // if there is no magic word set no record had been saved, so save it
+  if (!magicSet)        // if there is no magic word set for sure no record had been saved, so save it
   {
     DATAEE_WriteByte(EERecordAddr + offset, temperature);
     DATAEE_WriteByte(EERecordAddr + offset + 1, luminosity);
     DATAEE_WriteByte(EERecordAddr + offset + 2, hours);
     DATAEE_WriteByte(EERecordAddr + offset + 3, minutes);
     DATAEE_WriteByte(EERecordAddr + offset + 4, seconds);
+    
+    // Move offset
+    offset = (offset + 5) % (5 * nrec); // offset is 0, 5, 10, 15 with nrec = NREC
+    // Memory Saving
+    DATAEE_WriteByte(EERecordOffsetAddr, offset);
+    DATAEE_WriteByte(EEChecksumAddr, getChecksum());
+    setMagicWord();
   }
-  else // otherwise save if different from previous
+  else                  // otherwise save if different from previous
   {
     // Compare with previous record
     if (DATAEE_ReadByte(EERecordAddr + lastOffset) != temperature || DATAEE_ReadByte(EERecordAddr + lastOffset + 1) != luminosity)
     {
+      // Save
       DATAEE_WriteByte(EERecordAddr + offset, temperature);
       DATAEE_WriteByte(EERecordAddr + offset + 1, luminosity);
       DATAEE_WriteByte(EERecordAddr + offset + 2, hours);
       DATAEE_WriteByte(EERecordAddr + offset + 3, minutes);
       DATAEE_WriteByte(EERecordAddr + offset + 4, seconds);
+      
+      // Move offset
+      offset = (offset + 5) % (5 * nrec); // offset is 0, 5, 10, 15 with nrec = NREC
+      // Memory Saving
+      DATAEE_WriteByte(EERecordOffsetAddr, offset);
+      DATAEE_WriteByte(EEChecksumAddr, getChecksum());
     }
   }
-  // Move offset
-  lastOffset = offset;
-  offset = (offset + 5) % (5 * NREC); // offset is 0, 5, 10, 15 with NREC = 4
-  // Memory Saving
-  DATAEE_WriteByte(EERecordOffsetAddr, offset);
-  DATAEE_WriteByte(EEChecksumAddr, getChecksum());
-  if (!magicSet)
-  {
-    magicSet = true;
-    DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
-  }
+  // Don't move offset if record not written
 }
 
 // Show records saved in EEPROM
-void show_records (void)
+void recordShow (void)
 {
   char record_buffer1[RECORD_SIZE];
   char record_buffer2[RECORD_SIZE];
  
+  // ISSUE: variable length nrec not allowed
   uint8_t t_rec[NREC] = {0}, l_rec[NREC] = {0}, hh_rec[NREC] = {0}, mm_rec[NREC] = {0}, ss_rec[NREC] = {0};
   
   // Read from memory (stops when finds first 0xFF value)
@@ -518,7 +542,7 @@ void show_records (void)
     }
     else
     {
-      t_rec[i] = 0;
+      t_rec[i] = 0; // reset to 0 after reading 0xFF
       break;
     }
   }
@@ -551,7 +575,7 @@ void show_records (void)
 
 // ---- CONFIG MODE ----
 
-void config_mode (LCDposition *pos)
+void modeConfig (LCDposition *pos)
 {
   char threshold_buffer1[TIME_SIZE];
 	char threshold_buffer2[MEASUREMENT_SIZE];
@@ -595,11 +619,11 @@ void config_mode (LCDposition *pos)
 }
 
 // Modify field pointed by cursor
-void modify_field (LCDposition *pos)
+void modifyField (LCDposition *pos)
 {
   // Cursor on C -> modify clock thresholds
 	if (pos->row == 0 && pos->column == 11)
-     modify_field_clk();   // set position to column 1
+     modifyField_clk();  
 	// Cursor on T -> modify T threshold
 	else if (pos->row == 0 && pos->column == 12)
   {
@@ -607,11 +631,7 @@ void modify_field (LCDposition *pos)
     // Memory saving
     DATAEE_WriteByte(EEParamAddr + 7, alat);
     DATAEE_WriteByte(EEChecksumAddr, getChecksum());
-    if (!magicSet)
-    {
-      magicSet = true;
-      DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
-    }
+    setMagicWord();
   }
 	// Cursor on L -> modify L threshold
 	else if (pos->row == 0 && pos->column == 13)
@@ -620,11 +640,7 @@ void modify_field (LCDposition *pos)
     // Memory saving
     DATAEE_WriteByte(EEParamAddr + 8, alal);
     DATAEE_WriteByte(EEChecksumAddr, getChecksum());
-    if (!magicSet)
-    {
-      magicSet = true;
-      DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
-    }
+    setMagicWord();
   }
   // Cursor on A -> modify A flag
 	else if (pos->row == 0 && pos->column == 15)
@@ -633,15 +649,11 @@ void modify_field (LCDposition *pos)
     // Memory saving
     DATAEE_WriteByte(EEParamAddr + 3, alaf);
     DATAEE_WriteByte(EEChecksumAddr, getChecksum());
-    if (!magicSet)
-    {
-      magicSet = true;
-      DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
-    }
+    setMagicWord();
   }
 }
 
-void modify_field_clk (void) 
+void modifyField_clk (void) 
 { 
   char buffer[TIME_SIZE];
   
@@ -649,11 +661,12 @@ void modify_field_clk (void)
     
     // show updated values
     sprintf(buffer, "%02d:%02d:%02d", alah, alam, alas);
-    LCDpos(0,0);                         // start from hh:mm:ss
-    while (LCDbusy());                   //             ^
+    LCDpos(0,0);             
+    while (LCDbusy());                   
     LCDstr(buffer);
   
-    LCDpos(0, col);                      // move cursor
+    LCDpos(0, col);                      // start from hh:mm:ss, then move to updated column              
+                                         //             ^
     while (!s1_pressed && !s2_pressed);  // wait for input
     __delay_ms(100);                     // debouncing
 
@@ -667,11 +680,7 @@ void modify_field_clk (void)
           // Memory saving
           DATAEE_WriteByte(EEParamAddr + 4, alah);
           DATAEE_WriteByte(EEChecksumAddr, getChecksum());
-          if (!magicSet)
-          {
-            magicSet = true;
-            DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
-          }
+          setMagicWord();
         }
         else                             // otherwise (S1 pressed)
         {
@@ -688,11 +697,7 @@ void modify_field_clk (void)
           // Memory saving
           DATAEE_WriteByte(EEParamAddr + 5, alam);
           DATAEE_WriteByte(EEChecksumAddr, getChecksum());
-          if (!magicSet)
-          {
-            magicSet = true;
-            DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
-          }
+          setMagicWord();
         }
         else                             // otherwise (S1 pressed)
         {
@@ -709,11 +714,7 @@ void modify_field_clk (void)
           // Memory saving
           DATAEE_WriteByte(EEParamAddr + 6, alas);
           DATAEE_WriteByte(EEChecksumAddr, getChecksum());
-          if (!magicSet)
-          {
-            magicSet = true;
-            DATAEE_WriteByte(EEMagicWordAddr, MagicWord);
-          }
+          setMagicWord();
         }
         else                             // otherwise (S1 pressed)
         {
