@@ -200,7 +200,7 @@ void resetMemory (void)
   if ((ADCC_GetSingleConversion(0x0) >> 8) == 3) // check if potentiometer in position 3
   {
     for (uint16_t dataAddr = EEMagicWordAddr; dataAddr < EEChecksumAddr; dataAddr++)
-      DATAEE_WriteByte(dataAddr, 0xFF);
+      DATAEE_WriteByte(dataAddr, 0xFF);          
   } 
 }
 
