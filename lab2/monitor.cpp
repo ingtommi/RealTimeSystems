@@ -30,7 +30,7 @@ extern void cmd_pr (int, char**);
 /*-------------------------------------------------------------------------+
 | Variable and constants definition
 +--------------------------------------------------------------------------*/ 
-const char TitleMsg[] = "\nApplication Control Monitor\n";
+const char TitleMsg[] = "Application Control Monitor\n";
 const char InvalMsg[] = "\nInvalid command!\n";
 const char DescrMsg[] = "\nCMD ARGUMENTS                 DESCRIPTION\n";
 
@@ -106,7 +106,7 @@ void monitor (void)
   static char *argv[ARGVECSIZE+1], *p;
   int argc, i;
 
-  printf("%sType sos for help\n", TitleMsg);
+  printf("%s\nType sos for help\n", TitleMsg);
   for (;;) {
     printf("\nCMD> ");
     /* Reading and parsing command line  ----------------------------------*/

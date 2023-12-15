@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "FreeRTOS.h"
 #include "queue.h"
+#include "task.h"
 
 extern QueueHandle_t xQueue;
 
@@ -10,7 +11,7 @@ extern QueueHandle_t xQueue;
 +--------------------------------------------------------------------------*/ 
 void cmd_rc (int argc, char** argv) 
 {
-
+  //printf("%d\n", xTaskGetTickCount()/configTICK_RATE_HZ);
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_sc  - set clock
