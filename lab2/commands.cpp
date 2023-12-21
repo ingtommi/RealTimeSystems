@@ -11,13 +11,13 @@
 +--------------------------------------------------------------------------*/ 
 void cmd_rc (int argc, char** argv) 
 {
-  if (xClockMutex != NULL) 
+  if (ClockMutex != NULL) 
   {
-    xSemaphoreTake(xClockMutex, portMAX_DELAY); // take mutex shared with TaskClock
+    xSemaphoreTake(ClockMutex, portMAX_DELAY); // take mutex shared with TaskClock
     // only executed if mutex obtained
     printf("\nCurrent clock: %02d:%02d:%02d", hours, minutes, seconds);
 
-    xSemaphoreGive(xClockMutex);
+    xSemaphoreGive(ClockMutex);
   }
 }
 /*-------------------------------------------------------------------------+
@@ -25,9 +25,9 @@ void cmd_rc (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_sc (int argc, char** argv) 
 {
-  if (xClockMutex != NULL) 
+  if (ClockMutex != NULL) 
   {
-    xSemaphoreTake(xClockMutex, portMAX_DELAY); // take mutex shared with TaskClock
+    xSemaphoreTake(ClockMutex, portMAX_DELAY); // take mutex shared with TaskClock
     // only executed if mutex obtained
     if (argc == 4)
     {
@@ -47,7 +47,7 @@ void cmd_sc (int argc, char** argv)
     }
     else printf("\nInvalid number of arguments or wrong arguments!\n");
 
-    xSemaphoreGive(xClockMutex);
+    xSemaphoreGive(ClockMutex);
   }
 }
 /*-------------------------------------------------------------------------+
@@ -69,9 +69,9 @@ void cmd_rp (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_mmp (int argc, char** argv) 
 {
-  if (xSamplingMutex != NULL) 
+  if (SamplingMutex != NULL) 
   {
-    xSemaphoreTake(xSamplingMutex, portMAX_DELAY); // take mutex shared with TaskSensors
+    xSemaphoreTake(SamplingMutex, portMAX_DELAY); // take mutex shared with TaskSensors
     // only executed if mutex obtained
     if (argc == 2)
     {
@@ -82,7 +82,7 @@ void cmd_mmp (int argc, char** argv)
     }
     else printf("\nInvalid number of arguments or wrong arguments!\n");
 
-    xSemaphoreGive(xSamplingMutex);
+    xSemaphoreGive(SamplingMutex);
   }
 }
 /*-------------------------------------------------------------------------+
@@ -97,9 +97,9 @@ void cmd_mta (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_mpp (int argc, char** argv) 
 {
-  if (xProcessingMutex != NULL) 
+  if (ProcessingMutex != NULL) 
   {
-    xSemaphoreTake(xProcessingMutex, portMAX_DELAY); // take mutex shared with TaskProcessing
+    xSemaphoreTake(ProcessingMutex, portMAX_DELAY); // take mutex shared with TaskProcessing
     // only executed if mutex obtained
     if (argc == 2)
     {
@@ -110,7 +110,7 @@ void cmd_mpp (int argc, char** argv)
     }
     else printf("\nInvalid number of arguments or wrong arguments!\n");
 
-    xSemaphoreGive(xProcessingMutex);
+    xSemaphoreGive(ProcessingMutex);
   }
 }
 /*-------------------------------------------------------------------------+

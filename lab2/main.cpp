@@ -5,20 +5,34 @@
 #include "LM75B.h"
 #include "C12832.h"
 #include "semphr.h"
+#include <cstdint>
+#include <sys/types.h>
+
+#define NR 5 // maximum size of buffer
+
+// FUNCTIONS
+extern void monitor(void);
+       void show_temp(void);
 
 //DigitalOut led1(LED1);
 C12832 lcd(p5, p7, p6, p8, p11);
 LM75B sensor(p28, p27);
 Serial pc(USBTX, USBRX);
 
+// QUEUES
 //QueueHandle_t xQueue;
 
-extern void monitor(void);
-       void show_temp(void);
+// SEMAPHORES
+SemaphoreHandle_t PrintingMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t ClockMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t SamplingMutex = xSemaphoreCreateMutex();
 
-SemaphoreHandle_t printing_mutex = xSemaphoreCreateMutex();
-
-unsigned hours = 0, minutes = 0, seconds = 0;
+// SHARED DATA
+std::uint8_t hours = 0, minutes = 0, seconds = 0;
+std::uint8_t pmon = 3, tala = 5, pproc = 0; 
+std::uint8_t alah = 0, alam = 0, alas = 0, alat = 0, alal = 0;
+bool alaf = 0; // alaf = 0 --> a, alaf = 1 --> A
+std::uint8_t nr, wi, ri, n, i;
 
 /*-------------------------------------------------------------------------+
 | Function: my_fgets        (called from my_getline / monitor) 
@@ -43,10 +57,10 @@ void vTaskClock(void *pvParameters)
 {
   for(;;)
   {
-    xSemaphoreTake(printing_mutex, portMAX_DELAY);
+    xSemaphoreTake(PrintingMutex, portMAX_DELAY);
     lcd.locate(2,2);
     lcd.printf("%02d:%02d:%02d", hours, minutes, seconds);
-    xSemaphoreGive(printing_mutex);
+    xSemaphoreGive(PrintingMutex);
 
     if (seconds < 59) seconds++;
     else
@@ -63,7 +77,7 @@ void vTaskClock(void *pvParameters)
       }
     }
 
-    vTaskDelay( pdMS_TO_TICKS( 1000 ) );
+    vTaskDelay(pdMS_TO_TICKS(1000)); // 1 sec delay
   }
 }
 
@@ -72,14 +86,14 @@ void vTaskSensors(void *pvParameters)
 {
   for(;;)
   {
-    xSemaphoreTake(printing_mutex, portMAX_DELAY);
+    xSemaphoreTake(PrintingMutex, portMAX_DELAY);
     lcd.locate(2,19);
-    lcd.printf("%d C ", (int)sensor.temp());
+    lcd.printf("%u C ", (std::uint8_t)sensor.temp());
     //lcd.locate(30, 19);
-    //lcd.printf("L %d", (int)sensor.read8(p21));
-    xSemaphoreGive(printing_mutex);
+    //lcd.printf("L %u", (std::uint8_t)sensor.read8(p21));
+    xSemaphoreGive(PrintingMutex);
     
-    vTaskDelay( pdMS_TO_TICKS( 3000 ) );
+    vTaskDelay(pdMS_TO_TICKS(3000));
   }
 }
 
@@ -88,7 +102,7 @@ void vTaskProcessing(void *pvParameters)
 {
   for(;;)
   {
-    vTaskDelay( pdMS_TO_TICKS( 1000 ) );    //temporary
+    vTaskDelay( pdMS_TO_TICKS(1000));    //temporary
   }
 }
 
@@ -100,7 +114,7 @@ void vTaskConsole(void *pvParameters)
     //lValueToSend = 100;
     //xStatus = xQueueSend(xQueue, &lValueToSend, 0);
     monitor(); //does not return
-    vTaskDelay( pdMS_TO_TICKS( 1000 ) );    //temporary
+    vTaskDelay(pdMS_TO_TICKS(1000));    //temporary
   }
 }
 
