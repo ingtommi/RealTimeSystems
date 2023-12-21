@@ -5,8 +5,6 @@
 #include "LM75B.h"
 #include "C12832.h"
 #include "semphr.h"
-#include <cstdint>
-#include <sys/types.h>
 
 #define NR 5 // maximum size of buffer
 
@@ -25,7 +23,8 @@ Serial pc(USBTX, USBRX);
 // SEMAPHORES
 SemaphoreHandle_t PrintingMutex = xSemaphoreCreateMutex();
 SemaphoreHandle_t ClockMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t SamplingMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t ParamMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t AlarmMutex = xSemaphoreCreateMutex();
 
 // SHARED DATA
 std::uint8_t hours = 0, minutes = 0, seconds = 0;
@@ -102,7 +101,7 @@ void vTaskProcessing(void *pvParameters)
 {
   for(;;)
   {
-    vTaskDelay( pdMS_TO_TICKS(1000));    //temporary
+    vTaskDelay(pdMS_TO_TICKS(1000));    //temporary
   }
 }
 

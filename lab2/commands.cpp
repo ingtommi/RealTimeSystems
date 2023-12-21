@@ -3,8 +3,19 @@
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "task.h"
+#include "semphr.h"
 
 //extern QueueHandle_t xQueue;
+
+extern SemaphoreHandle_t ClockMutex;
+extern SemaphoreHandle_t ParamMutex;
+extern SemaphoreHandle_t AlarmMutex;
+
+extern std::uint8_t hours, minutes, seconds;
+extern std::uint8_t pmon, tala, pproc; 
+extern std::uint8_t alah, alam, alas, alat, alal;
+extern bool alaf; // alaf = 0 --> a, alaf = 1 --> A
+extern std::uint8_t nr, wi, ri, n, i;
 
 /*-------------------------------------------------------------------------+
 | Function: cmd_rc  - read clock
@@ -13,7 +24,7 @@ void cmd_rc (int argc, char** argv)
 {
   if (ClockMutex != NULL) 
   {
-    xSemaphoreTake(ClockMutex, portMAX_DELAY); // take mutex shared with TaskClock
+    xSemaphoreTake(ClockMutex, portMAX_DELAY);
     // only executed if mutex obtained
     printf("\nCurrent clock: %02d:%02d:%02d", hours, minutes, seconds);
 
@@ -27,7 +38,7 @@ void cmd_sc (int argc, char** argv)
 {
   if (ClockMutex != NULL) 
   {
-    xSemaphoreTake(ClockMutex, portMAX_DELAY); // take mutex shared with TaskClock
+    xSemaphoreTake(ClockMutex, portMAX_DELAY);
     // only executed if mutex obtained
     if (argc == 4)
     {
@@ -62,16 +73,23 @@ void cmd_rtl (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_rp (int argc, char** argv) 
 {
-  // Print current PMON, TALA, PPROC on the console
+  if (ParamMutex != NULL) 
+  {
+    xSemaphoreTake(ParamMutex, portMAX_DELAY);
+    // only executed if mutex obtained
+    printf("\nPMON = %u, TALA = %u, PPROC = %u seconds\n", pmon, tala, pproc);
+
+    xSemaphoreGive(ParamMutex);
+  }
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_mmp - modify monitoring period (seconds - 0 deactivate)
 +--------------------------------------------------------------------------*/ 
 void cmd_mmp (int argc, char** argv) 
 {
-  if (SamplingMutex != NULL) 
+  if (ParamMutex != NULL) 
   {
-    xSemaphoreTake(SamplingMutex, portMAX_DELAY); // take mutex shared with TaskSensors
+    xSemaphoreTake(ParamMutex, portMAX_DELAY);
     // only executed if mutex obtained
     if (argc == 2)
     {
@@ -82,7 +100,7 @@ void cmd_mmp (int argc, char** argv)
     }
     else printf("\nInvalid number of arguments or wrong arguments!\n");
 
-    xSemaphoreGive(SamplingMutex);
+    xSemaphoreGive(ParamMutex);
   }
 }
 /*-------------------------------------------------------------------------+
@@ -90,27 +108,41 @@ void cmd_mmp (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_mta (int argc, char** argv) 
 {
-  // Accept ss and assign it to TALA
+  if (ParamMutex != NULL) 
+  {
+    xSemaphoreTake(ParamMutex, portMAX_DELAY);
+    // only executed if mutex obtained
+    if (argc == 2)
+    {
+      if (atoi(argv[1]) >= 0 && atoi(argv[1]) < 60) // check seconds
+      {
+        tala = atoi(argv[1]);
+      }
+    }
+    else printf("\nInvalid number of arguments or wrong arguments!\n");
+
+    xSemaphoreGive(ParamMutex);
+  }
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_mpp - modify processing period (seconds - 0 deactivate)
 +--------------------------------------------------------------------------*/ 
 void cmd_mpp (int argc, char** argv) 
 {
-  if (ProcessingMutex != NULL) 
+  if (ParamMutex != NULL) 
   {
-    xSemaphoreTake(ProcessingMutex, portMAX_DELAY); // take mutex shared with TaskProcessing
+    xSemaphoreTake(ParamMutex, portMAX_DELAY);
     // only executed if mutex obtained
     if (argc == 2)
     {
       if (atoi(argv[1]) >= 0 && atoi(argv[1]) < 60) // check seconds
       {
-        pmon = atoi(argv[1]);
+        pproc = atoi(argv[1]);
       }
     }
     else printf("\nInvalid number of arguments or wrong arguments!\n");
 
-    xSemaphoreGive(ProcessingMutex);
+    xSemaphoreGive(ParamMutex);
   }
 }
 /*-------------------------------------------------------------------------+
@@ -118,7 +150,18 @@ void cmd_mpp (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_rai (int argc, char** argv) 
 {
-  // Print current ALAH, ALAM, ALAS, ALAT, ALAL, ALAF on the console
+  if (AlarmMutex != NULL) 
+  {
+    xSemaphoreTake(AlarmMutex, portMAX_DELAY);
+    // only executed if mutex obtained
+    printf("\nALAH = %u, ALAM = %u, ALAS = %u\n", alah, alam, alas);
+    if (alaf) 
+      printf("ALAT = %u, ALAL = %u, ALAF = A\n", alat, alal);
+    else 
+      printf("ALAT = %u, ALAL = %u, ALAF = a\n", alat, alal); 
+
+    xSemaphoreGive(AlarmMutex);
+  }
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_dac - define alarm clock
