@@ -25,6 +25,7 @@ SemaphoreHandle_t PrintingMutex = xSemaphoreCreateMutex();
 SemaphoreHandle_t ClockMutex = xSemaphoreCreateMutex();
 SemaphoreHandle_t ParamMutex = xSemaphoreCreateMutex();
 SemaphoreHandle_t AlarmMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t ProcessingMutex = xSemaphoreCreateMutex();
 
 // SHARED DATA
 std::uint8_t hours = 0, minutes = 0, seconds = 0;
