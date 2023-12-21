@@ -4,7 +4,7 @@
 #include "queue.h"
 #include "task.h"
 
-//extern QueueHandle_t xQueue;
+extern QueueHandle_t xQueue;
 
 /*-------------------------------------------------------------------------+
 | Function: cmd_rc  - read clock
