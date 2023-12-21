@@ -6,11 +6,10 @@
 #include "C12832.h"
 #include "semphr.h"
 
-#define NR 5 // maximum size of buffer
+#define NR 20 // maximum size of buffer
 
 // FUNCTIONS
 extern void monitor(void);
-       void show_temp(void);
 
 //DigitalOut led1(LED1);
 C12832 lcd(p5, p7, p6, p8, p11);
@@ -21,18 +20,25 @@ Serial pc(USBTX, USBRX);
 //QueueHandle_t xQueue;
 
 // SEMAPHORES
-SemaphoreHandle_t PrintingMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t ClockMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t ParamMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t AlarmMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t ProcessingMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t xClockMutex, xPrintingMutex, xParamMutex, xAlarmMutex, xProcessingMutex;
 
 // SHARED DATA
-std::uint8_t hours = 0, minutes = 0, seconds = 0;
-std::uint8_t pmon = 3, tala = 5, pproc = 0; 
-std::uint8_t alah = 0, alam = 0, alas = 0, alat = 0, alal = 0;
+uint8_t hours = 0, minutes = 0, seconds = 0;
+uint8_t pmon = 3, tala = 5, pproc = 0; 
+uint8_t alah = 0, alam = 0, alas = 0, alat = 0, alal = 0;
 bool alaf = 0; // alaf = 0 --> a, alaf = 1 --> A
-std::uint8_t nr, wi, ri, n, i;
+uint8_t nr, wi, ri;
+
+typedef struct
+{
+  uint8_t hours;
+  uint8_t minutes;
+  uint8_t seconds;
+  uint8_t temperature;
+  uint8_t luminosity;
+} Record;
+// ring-buffer
+Record records[20];
 
 /*-------------------------------------------------------------------------+
 | Function: my_fgets        (called from my_getline / monitor) 
@@ -57,10 +63,10 @@ void vTaskClock(void *pvParameters)
 {
   for(;;)
   {
-    xSemaphoreTake(PrintingMutex, portMAX_DELAY);
+    xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
     lcd.locate(2,2);
     lcd.printf("%02d:%02d:%02d", hours, minutes, seconds);
-    xSemaphoreGive(PrintingMutex);
+    xSemaphoreGive(xPrintingMutex);
 
     if (seconds < 59) seconds++;
     else
@@ -77,6 +83,8 @@ void vTaskClock(void *pvParameters)
       }
     }
 
+    // TODO: handle alarm here
+
     vTaskDelay(pdMS_TO_TICKS(1000)); // 1 sec delay
   }
 }
@@ -86,12 +94,12 @@ void vTaskSensors(void *pvParameters)
 {
   for(;;)
   {
-    xSemaphoreTake(PrintingMutex, portMAX_DELAY);
+    xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
     lcd.locate(2,19);
-    lcd.printf("%u C ", (std::uint8_t)sensor.temp());
+    lcd.printf("%u C ", (uint8_t)sensor.temp()); // TODO: only read here, values are displayed in TaskInterface
     //lcd.locate(30, 19);
-    //lcd.printf("L %u", (std::uint8_t)sensor.read8(p21));
-    xSemaphoreGive(PrintingMutex);
+    //lcd.printf("L %u", (uint8_t)sensor.read8(p21));
+    xSemaphoreGive(xPrintingMutex);
     
     vTaskDelay(pdMS_TO_TICKS(3000));
   }
@@ -107,7 +115,7 @@ void vTaskProcessing(void *pvParameters)
 }
 
 // CONSOLE
-void vTaskConsole(void *pvParameters)
+void vTaskInterface(void *pvParameters)
 {
   for(;;) 
   {
@@ -124,6 +132,14 @@ int main(void) {
 
   // --- APPLICATION TASKS CAN BE CREATED HERE ---
 
+  // Semaphores
+  xClockMutex = xSemaphoreCreateMutex();
+  xParamMutex = xSemaphoreCreateMutex();
+  xAlarmMutex = xSemaphoreCreateMutex();
+  xPrintingMutex = xSemaphoreCreateMutex();
+  xProcessingMutex = xSemaphoreCreateMutex();
+  // TODO: check return value of all of them?
+
   // Queues
   //xQueue = xQueueCreate(3, sizeof(int32_t));
   
@@ -131,7 +147,7 @@ int main(void) {
   xTaskCreate(vTaskClock, "Clock", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
   xTaskCreate(vTaskSensors, "Sensors", 2*configMINIMAL_STACK_SIZE, NULL, 2, NULL);
   xTaskCreate(vTaskProcessing, "Processing", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-  xTaskCreate(vTaskConsole, "Console", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+  xTaskCreate(vTaskInterface, "UserInterface", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
   
   // Start the created tasks running
   vTaskStartScheduler();
