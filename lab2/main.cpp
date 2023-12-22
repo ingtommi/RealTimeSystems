@@ -15,12 +15,18 @@ extern void monitor(void);
 C12832 lcd(p5, p7, p6, p8, p11);
 LM75B sensor(p28, p27);
 Serial pc(USBTX, USBRX);
+AnalogIn pot1(p19);
 
 // QUEUES
 //QueueHandle_t xQueue;
 
 // SEMAPHORES
-SemaphoreHandle_t xClockMutex, xPrintingMutex, xParamMutex, xAlarmMutex, xProcessingMutex;
+SemaphoreHandle_t xClockMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t xParamMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t xAlarmMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t xPrintingMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t xProcessingMutex = xSemaphoreCreateMutex();
+// TODO: check return value of all of them?
 
 // SHARED DATA
 uint8_t hours = 0, minutes = 0, seconds = 0;
@@ -95,10 +101,10 @@ void vTaskSensors(void *pvParameters)
   for(;;)
   {
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
-    lcd.locate(2,19);
-    lcd.printf("%u C ", (uint8_t)sensor.temp()); // TODO: only read here, values are displayed in TaskInterface
-    //lcd.locate(30, 19);
-    //lcd.printf("L %u", (uint8_t)sensor.read8(p21));
+    lcd.locate(2,20);
+    lcd.printf("%u C ", (uint8_t)sensor.temp());  // TODO: only read here, values are displayed in TaskInterface
+    lcd.locate(100, 20);
+    lcd.printf("L %u", (uint8_t)pot1.read());     // TODO: fix this read
     xSemaphoreGive(xPrintingMutex);
     
     vTaskDelay(pdMS_TO_TICKS(3000));
@@ -131,14 +137,6 @@ int main(void) {
   pc.baud(115200);
 
   // --- APPLICATION TASKS CAN BE CREATED HERE ---
-
-  // Semaphores
-  xClockMutex = xSemaphoreCreateMutex();
-  xParamMutex = xSemaphoreCreateMutex();
-  xAlarmMutex = xSemaphoreCreateMutex();
-  xPrintingMutex = xSemaphoreCreateMutex();
-  xProcessingMutex = xSemaphoreCreateMutex();
-  // TODO: check return value of all of them?
 
   // Queues
   //xQueue = xQueueCreate(3, sizeof(int32_t));

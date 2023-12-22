@@ -12,7 +12,7 @@
 
 extern SemaphoreHandle_t xClockMutex, xParamMutex, xAlarmMutex, xProcessingMutex, xPrintingMutex;
 
-extern uint8_t hours, minutes, seconds;
+extern int8_t hours, minutes, seconds;
 extern uint8_t pmon, tala, pproc; 
 extern uint8_t alah, alam, alas, alat, alal;
 extern bool alaf; // alaf = 0 --> a, alaf = 1 --> A
@@ -20,9 +20,9 @@ extern uint8_t nr, wi, ri;
 
 typedef struct 
 {
-  uint8_t hours;
-  uint8_t minutes;
-  uint8_t seconds;
+  int hours;
+  int minutes;
+  int seconds;
 } Time;
 
 typedef struct 
@@ -184,7 +184,7 @@ void cmd_dac (int argc, char** argv)
       alas = time.seconds;
       printf("\nClock correctly set!\n");
     }
-    else printf("\nInvalid time format!\n")
+    else printf("\nInvalid time format!\n");
   }
   else printf("\nInvalid number of arguments!\n");
 
@@ -306,8 +306,8 @@ void cmd_pr (int argc, char** argv)
       break;
 
     case 4:
-      time1.hours = atoi(argv[1]); 
-      time1.minutes = atoi(argv[2]); 
+      time1.hours = atoi(argv[1]);
+      time1.minutes = atoi(argv[2]);
       time1.seconds = atoi(argv[3]);
       if (checkTime(&time1))
       {
