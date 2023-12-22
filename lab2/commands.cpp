@@ -12,7 +12,7 @@
 
 extern SemaphoreHandle_t xClockMutex, xParamMutex, xAlarmMutex, xProcessingMutex, xPrintingMutex;
 
-extern int8_t hours, minutes, seconds;
+extern uint8_t hours, minutes, seconds;
 extern uint8_t pmon, tala, pproc; 
 extern uint8_t alah, alam, alas, alat, alal;
 extern bool alaf; // alaf = 0 --> a, alaf = 1 --> A
