@@ -70,7 +70,7 @@ void vTaskClock(void *pvParameters)
   for(;;)
   {
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
-    lcd.locate(2,2);
+    lcd.locate(4,2);
     lcd.printf("%02d:%02d:%02d", hours, minutes, seconds);
     xSemaphoreGive(xPrintingMutex);
 
@@ -98,16 +98,16 @@ void vTaskClock(void *pvParameters)
 // SENSORS
 void vTaskSensors(void *pvParameters)
 {
-  for(;;)
+  for(;;) if(pmon != 0)
   {
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
-    lcd.locate(2,20);
+    lcd.locate(4,20);
     lcd.printf("%u C ", (uint8_t)sensor.temp());  // TODO: only read here, values are displayed in TaskInterface
-    lcd.locate(100, 20);
+    lcd.locate(107, 20);
     lcd.printf("L %u", (uint8_t)pot1.read());     // TODO: fix this read
     xSemaphoreGive(xPrintingMutex);
     
-    vTaskDelay(pdMS_TO_TICKS(3000));
+    vTaskDelay(pdMS_TO_TICKS(1000*pmon));
   }
 }
 
@@ -116,6 +116,12 @@ void vTaskProcessing(void *pvParameters)
 {
   for(;;)
   {
+    lcd.locate(117, 2);
+    if(alaf)
+      lcd.printf("A");
+    else
+      lcd.printf(" ");
+
     vTaskDelay(pdMS_TO_TICKS(1000));    //temporary
   }
 }
