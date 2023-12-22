@@ -5,8 +5,7 @@
 #include "LM75B.h"
 #include "C12832.h"
 #include "semphr.h"
-
-#define NR 20 // maximum size of buffer
+#include "shared.h" // custom header for structs
 
 // FUNCTIONS
 extern void monitor(void);
@@ -15,18 +14,12 @@ extern void monitor(void);
 C12832 lcd(p5, p7, p6, p8, p11);
 LM75B sensor(p28, p27);
 Serial pc(USBTX, USBRX);
-AnalogIn pot1(p19);
 
 // QUEUES
-//QueueHandle_t xQueue;
+QueueHandle_t xSensorQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
 // SEMAPHORES
-SemaphoreHandle_t xClockMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t xParamMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t xAlarmMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t xPrintingMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t xProcessingMutex = xSemaphoreCreateMutex();
-// TODO: check return value of all of them?
+SemaphoreHandle_t xClockMutex, xPrintingMutex, xParamMutex, xAlarmMutex, xProcessingMutex;
 
 // SHARED DATA
 uint8_t hours = 0, minutes = 0, seconds = 0;
@@ -34,17 +27,8 @@ uint8_t pmon = 3, tala = 5, pproc = 0;
 uint8_t alah = 0, alam = 0, alas = 0, alat = 0, alal = 0;
 bool alaf = 0; // alaf = 0 --> a, alaf = 1 --> A
 uint8_t nr, wi, ri;
-
-typedef struct
-{
-  uint8_t hours;
-  uint8_t minutes;
-  uint8_t seconds;
-  uint8_t temperature;
-  uint8_t luminosity;
-} Record;
-// ring-buffer
-Record records[20];
+uint8_t temp, lum;
+Record records[NR]; // ring-buffer
 
 /*-------------------------------------------------------------------------+
 | Function: my_fgets        (called from my_getline / monitor) 
@@ -71,7 +55,7 @@ void vTaskClock(void *pvParameters)
   {
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
     lcd.locate(4,2);
-    lcd.printf("%02d:%02d:%02d", hours, minutes, seconds);
+    lcd.printf("%02u:%02u:%02u", hours, minutes, seconds);
     xSemaphoreGive(xPrintingMutex);
 
     if (seconds < 59) seconds++;
@@ -88,7 +72,6 @@ void vTaskClock(void *pvParameters)
         hours++;
       }
     }
-
     // TODO: handle alarm here
 
     vTaskDelay(pdMS_TO_TICKS(1000)); // 1 sec delay
@@ -98,16 +81,20 @@ void vTaskClock(void *pvParameters)
 // SENSORS
 void vTaskSensors(void *pvParameters)
 {
-  for(;;) if(pmon != 0)
+  for(;;)
   {
+    temp = (uint8_t)sensor.temp(); // TODO: better to use a float?
+    //lum = (uint8_t)sensor.read8(p21);
+
+    // Print sensors' values
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
-    lcd.locate(4,20);
-    lcd.printf("%u C ", (uint8_t)sensor.temp());  // TODO: only read here, values are displayed in TaskInterface
-    lcd.locate(107, 20);
-    lcd.printf("L %u", (uint8_t)pot1.read());     // TODO: fix this read
+    lcd.locate(2,19);
+    lcd.printf("%u °C ", temp); 
+    //lcd.locate(30, 19);
+    //lcd.printf("L %u", lum);
     xSemaphoreGive(xPrintingMutex);
     
-    vTaskDelay(pdMS_TO_TICKS(1000*pmon));
+    vTaskDelay(pdMS_TO_TICKS(1000 * pmon));
   }
 }
 
@@ -116,25 +103,19 @@ void vTaskProcessing(void *pvParameters)
 {
   for(;;)
   {
-    lcd.locate(117, 2);
-    if(alaf)
-      lcd.printf("A");
-    else
-      lcd.printf(" ");
-
-    vTaskDelay(pdMS_TO_TICKS(1000));    //temporary
+    vTaskDelay(pdMS_TO_TICKS(1000 * pproc));
   }
 }
 
 // CONSOLE
-void vTaskInterface(void *pvParameters)
+void vTaskConsole(void *pvParameters)
 {
   for(;;) 
   {
-    //lValueToSend = 100;
-    //xStatus = xQueueSend(xQueue, &lValueToSend, 0);
-    monitor(); //does not return
-    vTaskDelay(pdMS_TO_TICKS(1000));    //temporary
+    // Call console
+    monitor();
+
+    vTaskDelay(pdMS_TO_TICKS(1000)); //temporary
   }
 }
 
@@ -144,14 +125,24 @@ int main(void) {
 
   // --- APPLICATION TASKS CAN BE CREATED HERE ---
 
+  // Semaphores
+  xClockMutex = xSemaphoreCreateMutex();
+  xParamMutex = xSemaphoreCreateMutex();
+  xAlarmMutex = xSemaphoreCreateMutex();
+  xPrintingMutex = xSemaphoreCreateMutex();
+  xProcessingMutex = xSemaphoreCreateMutex();
+  // TODO: check return value of all of them?
+
   // Queues
-  //xQueue = xQueueCreate(3, sizeof(int32_t));
+  xSensorQueue = xQueueCreate(1, sizeof(Sensor));
+  xProcessingInputQueue = xQueueCreate(1, sizeof(Interval));
+  xProcessingOutputQueue = xQueueCreate(1, sizeof(Process));
   
-  // Tasks
+  // Tasks (TODO: define priorities)
   xTaskCreate(vTaskClock, "Clock", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
   xTaskCreate(vTaskSensors, "Sensors", 2*configMINIMAL_STACK_SIZE, NULL, 2, NULL);
   xTaskCreate(vTaskProcessing, "Processing", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-  xTaskCreate(vTaskInterface, "UserInterface", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+  xTaskCreate(vTaskConsole, "Console", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
   
   // Start the created tasks running
   vTaskStartScheduler();

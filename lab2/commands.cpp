@@ -2,13 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "FreeRTOS.h"
+#include "portmacro.h"
 #include "queue.h"
 #include "task.h"
 #include "semphr.h"
+#include "shared.h" // custom header for structs
 
-#define NR 20
-
-//extern QueueHandle_t xQueue;
+extern QueueHandle_t xSensorQueue, xProcessingQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
 extern SemaphoreHandle_t xClockMutex, xParamMutex, xAlarmMutex, xProcessingMutex, xPrintingMutex;
 
@@ -17,19 +17,9 @@ extern uint8_t pmon, tala, pproc;
 extern uint8_t alah, alam, alas, alat, alal;
 extern bool alaf; // alaf = 0 --> a, alaf = 1 --> A
 extern uint8_t nr, wi, ri;
+extern Record records[NR];
 
-typedef struct 
-{
-  int hours;
-  int minutes;
-  int seconds;
-} Time;
-
-typedef struct 
-{
-  uint8_t n;
-  uint8_t i;
-} RecordsList;
+const Time invalid = {INVALID, INVALID, INVALID};
 
 bool checkTime(Time *time);
 bool compareTime(Time *time1, Time *time2);
@@ -42,7 +32,6 @@ void cmd_rc (int argc, char** argv)
   xSemaphoreTake(xClockMutex, portMAX_DELAY);
   // only executed if mutex obtained
   printf("\nCurrent clock: %02d:%02d:%02d", hours, minutes, seconds);
-
   xSemaphoreGive(xClockMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -60,15 +49,14 @@ void cmd_sc (int argc, char** argv)
     time.seconds = atoi(argv[3]);
     if (checkTime(&time))
     {
-      hours = time.hours;
-      minutes = time.minutes;
-      seconds = time.seconds;
+      hours = (uint8_t)time.hours;
+      minutes = (uint8_t)time.minutes;
+      seconds = (uint8_t)time.seconds;
       printf("\nClock correctly set!\n");
     }
     else printf("\nInvalid time format!\n");
   }
   else printf("\nInvalid number of arguments!\n");
-
   xSemaphoreGive(xClockMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -76,7 +64,13 @@ void cmd_sc (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_rtl (int argc, char** argv) 
 {
-  // TODO: ask TaskSensor to read sensors and read queue to print current T, L on the console
+  Sensor values;
+
+  // TODO: call TaskSensor
+
+  if (xQueueReceive(xSensorQueue, &values, portMAX_DELAY) == pdPASS)
+    // Display read values
+    printf("\nTemperature = %u °C, Luminosity = %u\n", values.temp, values.lum);
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_rp  - read parameters (pmon, tala, pproc)
@@ -86,7 +80,6 @@ void cmd_rp (int argc, char** argv)
   xSemaphoreTake(xParamMutex, portMAX_DELAY);
   // only executed if mutex obtained
   printf("\nPMON = %u, TALA = %u, PPROC = %u seconds\n", pmon, tala, pproc);
-
   xSemaphoreGive(xParamMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -98,16 +91,15 @@ void cmd_mmp (int argc, char** argv)
   // only executed if mutex obtained
   if (argc == 2)
   {
-    uint8_t s = atoi(argv[1]);
+    short s = atoi(argv[1]);
     if (s >= 0 && s < 60) // check seconds
     {
-      pmon = s;
+      pmon = (uint8_t)s;
       printf("\nMonitoring period correctly set!\n");
     }
     else printf("\nInvalid seconds!\n");
   }
   else printf("\nInvalid number of arguments!\n");
-
   xSemaphoreGive(xParamMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -119,16 +111,15 @@ void cmd_mta (int argc, char** argv)
   // only executed if mutex obtained
   if (argc == 2)
   {
-    uint8_t s = atoi(argv[1]);
+    short s = atoi(argv[1]);
     if (s >= 0 && s < 60) // check seconds
     {
-      tala = s;
+      tala = (uint8_t)s;
       printf("\nMonitoring period correctly set!\n");
     }
     else printf("\nInvalid seconds!\n");
   }
   else printf("\nInvalid number of arguments!\n");
-
   xSemaphoreGive(xParamMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -140,16 +131,15 @@ void cmd_mpp (int argc, char** argv)
   // only executed if mutex obtained
   if (argc == 2)
   {
-    uint8_t s = atoi(argv[1]);
+    short s = atoi(argv[1]);
     if (s >= 0 && s < 60) // check seconds
     {
-      pproc = s;
+      pproc = (uint8_t)s;
       printf("\nMonitoring period correctly set!\n");
     }
     else printf("\nInvalid seconds!\n");
   }
   else printf("\nInvalid number of arguments!\n");
-
   xSemaphoreGive(xParamMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -161,7 +151,6 @@ void cmd_rai (int argc, char** argv)
   // only executed if mutex obtained
   printf("\nALAH = %u, ALAM = %u, ALAS = %u\n", alah, alam, alas);
   printf("ALAT = %u, ALAL = %u, ALAF = %c\n", alat, alal, alaf ? 'A' : 'a');
-
   xSemaphoreGive(xAlarmMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -179,15 +168,14 @@ void cmd_dac (int argc, char** argv)
     time.seconds = atoi(argv[3]);
     if (checkTime(&time))
     {
-      alah = time.hours;
-      alam = time.minutes;
-      alas = time.seconds;
+      alah = (uint8_t)time.hours;
+      alam = (uint8_t)time.minutes;
+      alas = (uint8_t)time.seconds;
       printf("\nClock correctly set!\n");
     }
     else printf("\nInvalid time format!\n");
   }
   else printf("\nInvalid number of arguments!\n");
-
   xSemaphoreGive(xAlarmMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -199,13 +187,13 @@ void cmd_dtl (int argc, char** argv)
   // only executed if mutex obtained
   if (argc == 3)
   {
-    uint8_t t = atoi(argv[1]), l = atoi(argv[2]);
+    short t = atoi(argv[1]), l = atoi(argv[2]);
     if (t >= 0 && t <= 50) // check temperature
     {
       if (l >= 0 && l <= 3) // check luminosity
       {
-        alat = t;
-        alal = l;
+        alat = (uint8_t)t;
+        alal = (uint8_t)l;
         printf("\nSensor thresholds correctly set!\n");
       }
       else printf("\nInvalid luminosity!\n");
@@ -213,7 +201,6 @@ void cmd_dtl (int argc, char** argv)
     else printf("\nInvalid temperature!\n");
   }
   else printf("\nInvalid number of arguments!\n");
-
   xSemaphoreGive(xAlarmMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -225,7 +212,7 @@ void cmd_aa (int argc, char** argv)
   // only executed if mutex obtained
   if (argc == 2)
   {
-    uint8_t num = atoi(argv[1]);
+    short num = atoi(argv[1]);
     if (num == 65 || num == 97) // ASCII: A = 65, a = 97
     {
       alaf = (num == 65) ? 1 : 0;
@@ -234,7 +221,6 @@ void cmd_aa (int argc, char** argv)
     else printf("\nInvalid character!\n");
   }
   else printf("\nInvalid number of arguments!\n");
-
   xSemaphoreGive(xAlarmMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -247,7 +233,6 @@ void cmd_cai (int argc, char** argv)
   // only executed if mutex obtained
   lcd.locate(x,y); // TODO: define cursor position
   LCD.printf("   ");
-
   xSemaphoreGive(PrintingMutex);
   */
 }
@@ -259,7 +244,6 @@ void cmd_ir (int argc, char** argv)
   xSemaphoreTake(xProcessingMutex, portMAX_DELAY);
   // only executed if mutex obtained
   printf("\nNR = %u, nr = %u, wi = %u, ri = %u\n", NR, nr, wi, ri);
-  
   xSemaphoreGive(xProcessingMutex);
 }
 /*-------------------------------------------------------------------------+
@@ -269,17 +253,15 @@ void cmd_lr (int argc, char** argv)
 {
   if (argc == 3)
   {
-    RecordsList data;
-    data.n = atoi(argv[1]);
-    data.i = atoi(argv[2]);
-    if (data.n >= 0 && data.n <= NR) // check n
+    short n = atoi(argv[1]), i = atoi(argv[2]);
+    if (n >= 0 && n <= NR) // check n
     {
-      if (data.i >= 0 && data.i < NR) // check i
+      if (i >= 0 && i < NR) // check i
       {
-        // TODO: write data in the queue to make it available for processing
-        // TODO: read data from the queue and print it to the console
+        for (short j = i; j < n; j++)
+          printf("\nRecord %hd: %02u:%02u:%02u %u °C, L %u\n", j, records[j].hours, records[j].minutes, records[j].seconds, records[j].temperature, records[j].luminosity);
       }
-      else printf("\nInvalid number!\n");
+      else printf("\nInvalid number of records!\n");
     }
     else printf("\nInvalid index!\n");
   }
@@ -290,8 +272,14 @@ void cmd_lr (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_dr (int argc, char** argv) 
 {
-  // TODO: delete all records from shared memory
-  // directly empty the ring buffer or do it through a task?
+  for (uint8_t i = 0; i < NR; i++)
+  {
+    records[i].hours = 0;
+    records[i].minutes = 0;
+    records[i].seconds = 0;
+    records[i].temperature = 0;
+    records[i].luminosity = 0;
+  }
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_pr  - process records (max, min, mean) between instants t1 and t2 (h,m,s)
@@ -299,19 +287,40 @@ void cmd_dr (int argc, char** argv)
 void cmd_pr (int argc, char** argv) 
 {
   Time time1, time2;
+  Interval interval;
+  Process process;
+
   switch (argc)
   {
     case 1:
-      // TODO: let TaskProcessing to process all records and read queue to display results
+      interval.time1 = invalid;
+      interval.time2 = invalid;
+      // Send data
+      xQueueSend(xProcessingInputQueue, (void*)&interval, portMAX_DELAY);
+      // Receive data
+      if (xQueueReceive(xProcessingOutputQueue, &process, portMAX_DELAY) == pdPASS)
+      {
+        printf("\nTemperature (max, min, mean) = %u, %u, %f", process.maxT, process.minT, process.meanT);
+        printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", process.maxL, process.minL, process.meanL);
+      }
       break;
 
     case 4:
-      time1.hours = atoi(argv[1]);
-      time1.minutes = atoi(argv[2]);
+      time1.hours = atoi(argv[1]); 
+      time1.minutes = atoi(argv[2]); 
       time1.seconds = atoi(argv[3]);
       if (checkTime(&time1))
       {
-        // TODO: send time1 to the queue and read the queue to display results 
+        interval.time1 = time1;
+        interval.time2 = invalid;
+        // Send data
+        xQueueSend(xProcessingInputQueue, (void*)&interval, portMAX_DELAY);
+        // Receive data
+        if (xQueueReceive(xProcessingOutputQueue, &process, portMAX_DELAY) == pdPASS)
+        {
+          printf("\nTemperature (max, min, mean) = %u, %u, %f", process.maxT, process.minT, process.meanT);
+          printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", process.maxL, process.minL, process.meanL);
+        }
       }
       else printf("\nInvalid time format!\n");
       break;
@@ -327,7 +336,16 @@ void cmd_pr (int argc, char** argv)
       {
         if (compareTime(&time1, &time2))
         {
-          // TODO: send time1, time2 to the queue and read the queue to display results 
+          interval.time1 = time1;
+          interval.time2 = time2;
+          // Send data
+          xQueueSend(xProcessingInputQueue, (void*)&interval, portMAX_DELAY);
+          // Receive data
+          if (xQueueReceive(xProcessingOutputQueue, &process, portMAX_DELAY) == pdPASS)
+          {
+            printf("\nTemperature (max, min, mean) = %u, %u, %f", process.maxT, process.minT, process.meanT);
+            printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", process.maxL, process.minL, process.meanL);
+          }
         }
         else printf("\nInvalid time interval!\n");
       }
