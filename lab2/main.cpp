@@ -31,8 +31,9 @@ uint8_t alat = 20, alal = 2;
 bool alaf = 0;                        // alaf = 0 --> a, alaf = 1 --> A
 uint8_t count_to_tala = 5;            // time since buzzer started
 uint8_t temp, lum;
-uint8_t nr, wi, ri;
-Record records[NR]; // ring-buffer
+uint8_t nr, wi, ri;                   // ring-buffer parameters
+uint8_t record_nr = 0;
+Record records[NR];                   // ring-buffer
 
 /*-------------------------------------------------------------------------+
 | Function: my_fgets        (called from my_getline / monitor) 
@@ -114,6 +115,15 @@ void vTaskSensors(void *pvParameters)
     lcd.locate(107, 20);
     lcd.printf("L %u", lum);
     xSemaphoreGive(xPrintingMutex);
+
+    records[record_nr].hours = hours;
+    records[record_nr].minutes = minutes;
+    records[record_nr].seconds = seconds;
+    records[record_nr].temperature = temp;
+    records[record_nr].luminosity = lum;
+
+    record_nr++;
+    record_nr %= 20;
 
     if(alaf)
     {
