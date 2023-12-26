@@ -14,6 +14,8 @@ extern void monitor(void);
 C12832 lcd(p5, p7, p6, p8, p11);
 LM75B sensor(p28, p27);
 Serial pc(USBTX, USBRX);
+AnalogIn pot1(p19);
+PwmOut speaker(p26);
 
 // QUEUES
 QueueHandle_t xSensorQueue, xProcessingInputQueue, xProcessingOutputQueue;
@@ -24,10 +26,12 @@ SemaphoreHandle_t xClockMutex, xPrintingMutex, xParamMutex, xAlarmMutex, xProces
 // SHARED DATA
 uint8_t hours = 0, minutes = 0, seconds = 0;
 uint8_t pmon = 3, tala = 5, pproc = 0; 
-uint8_t alah = 0, alam = 0, alas = 0, alat = 0, alal = 0;
-bool alaf = 0; // alaf = 0 --> a, alaf = 1 --> A
-uint8_t nr, wi, ri;
+uint8_t alah = 0, alam = 0, alas = 0; // keeping default values means no C alarm
+uint8_t alat = 20, alal = 2;
+bool alaf = 0;                        // alaf = 0 --> a, alaf = 1 --> A
+uint8_t count_to_tala = 5;            // time since buzzer started
 uint8_t temp, lum;
+uint8_t nr, wi, ri;
 Record records[NR]; // ring-buffer
 
 /*-------------------------------------------------------------------------+
@@ -57,7 +61,27 @@ void vTaskClock(void *pvParameters)
     lcd.locate(4,2);
     lcd.printf("%02u:%02u:%02u", hours, minutes, seconds);
     xSemaphoreGive(xPrintingMutex);
+    
+    // Alarm handler
+    if(alaf)
+    {
+      if(hours == alah && minutes == alam && seconds == alas)
+      {
+        if (alah != 0 || alam != 0 || alas != 0)
+        {
+          xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
+          lcd.locate(77, 2);
+          lcd.printf("C");
+          xSemaphoreGive(xPrintingMutex);
+          count_to_tala = 0;
+        }
+      }
+    }
 
+    // 1 sec delay
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    // update time (after delay to start counting at 0 and have no issues with C alarm)
     if (seconds < 59) seconds++;
     else
     {
@@ -72,29 +96,64 @@ void vTaskClock(void *pvParameters)
         hours++;
       }
     }
-    // TODO: handle alarm here
-
-    vTaskDelay(pdMS_TO_TICKS(1000)); // 1 sec delay
   }
 }
 
 // SENSORS
 void vTaskSensors(void *pvParameters)
 {
-  for(;;)
+  for(;;) if(pmon != 0)
   {
     temp = (uint8_t)sensor.temp(); // TODO: better to use a float?
-    //lum = (uint8_t)sensor.read8(p21);
+    lum = (uint8_t)pot1.read();
 
     // Print sensors' values
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
-    lcd.locate(2,19);
-    lcd.printf("%u °C ", temp); 
-    //lcd.locate(30, 19);
-    //lcd.printf("L %u", lum);
+    lcd.locate(4,20);
+    lcd.printf("%u C ", temp); 
+    lcd.locate(107, 20);
+    lcd.printf("L %u", lum);
     xSemaphoreGive(xPrintingMutex);
+
+    if(alaf)
+    {
+      if(temp > alat)
+      {
+        xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
+        lcd.locate(87,2);
+        lcd.printf("T", temp);
+        xSemaphoreGive(xPrintingMutex);
+        count_to_tala = 0;
+      }
+
+      if(lum > alal)
+      {
+        xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
+        lcd.locate(97,2);
+        lcd.printf("L");
+        xSemaphoreGive(xPrintingMutex);
+        count_to_tala = 0;
+      }
+    }
     
     vTaskDelay(pdMS_TO_TICKS(1000 * pmon));
+  }
+}
+
+// PWM BUZZER
+void vTaskBuzzer(void *pvParameters)
+{
+  for(;;)
+  {
+    if(count_to_tala < tala)
+    {
+      speaker = 0.5;
+      count_to_tala++;
+    }
+    else {
+      speaker = 0;
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
 
@@ -103,6 +162,14 @@ void vTaskProcessing(void *pvParameters)
 {
   for(;;)
   {
+    xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
+    lcd.locate(117,2);
+    if(alaf)
+      lcd.printf("A");
+    else
+      lcd.printf("a");
+    xSemaphoreGive(xPrintingMutex);
+    
     vTaskDelay(pdMS_TO_TICKS(1000 * pproc));
   }
 }
@@ -141,6 +208,7 @@ int main(void) {
   // Tasks (TODO: define priorities)
   xTaskCreate(vTaskClock, "Clock", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
   xTaskCreate(vTaskSensors, "Sensors", 2*configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+  xTaskCreate(vTaskBuzzer, "Buzzer", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(vTaskProcessing, "Processing", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(vTaskConsole, "Console", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
   
