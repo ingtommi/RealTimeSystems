@@ -14,7 +14,7 @@ extern void monitor(void);
 C12832 lcd(p5, p7, p6, p8, p11);
 LM75B sensor(p28, p27);
 Serial pc(USBTX, USBRX);
-AnalogIn pot1(p19);
+AnalogIn pot1(p19);         // TODO: fix potentiometer
 PwmOut speaker(p26);
 
 // QUEUES
@@ -29,7 +29,7 @@ uint8_t pmon = 3, tala = 5, pproc = 0;
 uint8_t alah = 0, alam = 0, alas = 0; // keeping default values means no C alarm
 uint8_t alat = 20, alal = 2;
 bool alaf = 0;                        // alaf = 0 --> a, alaf = 1 --> A
-uint8_t count_to_tala = 5;            // time since buzzer started
+uint8_t tala_count = 0;               // time left for the buzzer to stop ringing (tala seconds after the start)
 uint8_t temp, lum;
 uint8_t nr, wi, ri;                   // ring-buffer parameters
 uint8_t record_nr = 0;
@@ -74,7 +74,7 @@ void vTaskClock(void *pvParameters)
           lcd.locate(77, 2);
           lcd.printf("C");
           xSemaphoreGive(xPrintingMutex);
-          count_to_tala = 0;
+          tala_count = tala;
         }
       }
     }
@@ -133,7 +133,7 @@ void vTaskSensors(void *pvParameters)
         lcd.locate(87,2);
         lcd.printf("T", temp);
         xSemaphoreGive(xPrintingMutex);
-        count_to_tala = 0;
+        tala_count = tala;
       }
 
       if(lum > alal)
@@ -142,7 +142,7 @@ void vTaskSensors(void *pvParameters)
         lcd.locate(97,2);
         lcd.printf("L");
         xSemaphoreGive(xPrintingMutex);
-        count_to_tala = 0;
+        tala_count = tala;
       }
     }
     
@@ -151,14 +151,14 @@ void vTaskSensors(void *pvParameters)
 }
 
 // PWM BUZZER
-void vTaskBuzzer(void *pvParameters)
+void vTaskBuzzer(void *pvParameters)      // TODO: make it stop ringing after tala even when the alarm is still present?
 {
   for(;;)
   {
-    if(count_to_tala < tala)
+    if(tala_count != 0)
     {
       speaker = 0.5;
-      count_to_tala++;
+      tala_count--;
     }
     else {
       speaker = 0;
