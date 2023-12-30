@@ -6,7 +6,10 @@
 #include "queue.h"
 #include "task.h"
 #include "semphr.h"
-#include "shared.h" // custom header for structs
+#include "C12832.h"
+#include "shared.h" // custom header for shared objects
+
+extern C12832 lcd;
 
 extern QueueHandle_t xSensorQueue, xProcessingQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
@@ -232,11 +235,11 @@ void cmd_cai (int argc, char** argv)
   // only executed if mutex obtained
   // TODO: check if possible to locate in first position and erase all together
   lcd.locate(77, 2); // C
-  LCD.printf(" ");
+  lcd.printf(" ");
   lcd.locate(87, 2); // T
-  LCD.printf(" ");
+  lcd.printf(" ");
   lcd.locate(97, 2); // L
-  LCD.printf(" ");
+  lcd.printf(" ");
   xSemaphoreGive(xPrintingMutex);
 }
 /*-------------------------------------------------------------------------+
