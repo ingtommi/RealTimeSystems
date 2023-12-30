@@ -5,7 +5,7 @@
 #include "LM75B.h"
 #include "C12832.h"
 #include "semphr.h"
-#include "shared.h" // custom header for structs
+#include "shared.h" // custom header for shared objects
 
 // FUNCTIONS
 extern void monitor(void);
@@ -75,6 +75,7 @@ void vTaskClock(void *pvParameters)
     xSemaphoreGive(xPrintingMutex);
     
     // Handle alarm
+    xSemaphoreTake(xAlarmMutex, portMAX_DELAY); // take mutex to avoid modification of alarm paramaters
     if (alaf)
     {
       if (alah != 0 || alam != 0 || alas != 0) // do nothing if clock threshold is 00:00:00
@@ -89,6 +90,7 @@ void vTaskClock(void *pvParameters)
         }
       }
     }
+    xSemaphoreGive(xAlarmMutex);
 
     // 1 sec delay
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -135,6 +137,7 @@ void vTaskSensors(void *pvParameters)
     record_nr %= 20;
 
     // Handle alarm
+    xSemaphoreTake(xAlarmMutex, portMAX_DELAY); // take mutex to avoid modification of alarm paramaters
     if (alaf)
     {
       if (temp > alat)
@@ -155,6 +158,7 @@ void vTaskSensors(void *pvParameters)
         tala_count = tala; // start buzzer (TODO: change approach to a blocking one?)
       }
     }
+    xSemaphoreGive(xAlarmMutex);
     
     // PMON sec delay
     vTaskDelay(pdMS_TO_TICKS(1000 * pmon));
@@ -164,7 +168,7 @@ void vTaskSensors(void *pvParameters)
 // PROCESSING
 void vTaskProcessing(void *pvParameters)
 {
-  for (;;) if (pproc != 0)
+  for (;;)
   {
     // TODO: implement features 
     

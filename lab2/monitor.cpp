@@ -2,6 +2,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "mbed.h"
+#include "shared.h" // custom header for shared objects
+
+extern Serial pc;;
 
 /*-------------------------------------------------------------------------+
 | Headers of command functions
