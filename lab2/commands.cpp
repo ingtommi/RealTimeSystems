@@ -15,7 +15,7 @@ extern SemaphoreHandle_t xClockMutex, xParamMutex, xAlarmMutex, xProcessingMutex
 extern uint8_t hours, minutes, seconds;
 extern uint8_t pmon, tala, pproc; 
 extern uint8_t alah, alam, alas, alat, alal;
-extern bool alaf; // alaf = 0 --> a, alaf = 1 --> A
+extern bool alaf;
 extern uint8_t nr, wi, ri;
 extern Record records[NR];
 
@@ -228,13 +228,16 @@ void cmd_aa (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_cai (int argc, char** argv) 
 {
-  /*
-  xSemaphoreTake(PrintingMutex, portMAX_DELAY);
+  xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
   // only executed if mutex obtained
-  lcd.locate(x,y); // TODO: define cursor position
-  LCD.printf("   ");
-  xSemaphoreGive(PrintingMutex);
-  */
+  // TODO: check if possible to locate in first position and erase all together
+  lcd.locate(77, 2); // C
+  LCD.printf(" ");
+  lcd.locate(87, 2); // T
+  LCD.printf(" ");
+  lcd.locate(97, 2); // L
+  LCD.printf(" ");
+  xSemaphoreGive(xPrintingMutex);
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_ir  - information about records (NR, nr, wi, ri)
