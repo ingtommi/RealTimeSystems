@@ -21,7 +21,7 @@ PwmOut speaker(p26);
 QueueHandle_t xSensorQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
 // SEMAPHORES
-SemaphoreHandle_t xClockMutex, xPrintingMutex, xParamMutex, xAlarmMutex, xProcessingMutex;
+SemaphoreHandle_t xClockMutex, xPrintingMutex;
 
 // SHARED DATA
 uint8_t hours = 0, minutes = 0, seconds = 0;
@@ -63,6 +63,11 @@ void vTaskClock(void *pvParameters)
 {
   for (;;)
   {
+    /* CRITICAL SECTION: 
+    - hours, minutes, seconds may be under user modification from TaskConsole
+    - TaskSensor and TaskConsole may want to use the display
+    */
+    xSemaphoreTake(xClockMutex, portMAX_DELAY);
     // Print clock and alarm mode
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
     lcd.locate(4,2);   // clock
@@ -75,13 +80,13 @@ void vTaskClock(void *pvParameters)
     xSemaphoreGive(xPrintingMutex);
     
     // Handle alarm
-    xSemaphoreTake(xAlarmMutex, portMAX_DELAY); // take mutex to avoid modification of alarm paramaters
     if (alaf)
     {
       if (alah != 0 || alam != 0 || alas != 0) // do nothing if clock threshold is 00:00:00
       {
         if (hours == alah && minutes == alam && seconds == alas)
         {
+          // CRITICAL SECTION: TaskSensor and TaskConsole may want to use the display
           xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
           lcd.locate(77, 2);
           lcd.printf("C");
@@ -90,11 +95,13 @@ void vTaskClock(void *pvParameters)
         }
       }
     }
-    xSemaphoreGive(xAlarmMutex);
+    //CRITICAL SECTION: after the delay, hours, minutes and seconds may be again under modification
+    xSemaphoreGive(xClockMutex);
 
     // 1 sec delay
     vTaskDelay(pdMS_TO_TICKS(1000));
 
+    xSemaphoreTake(xClockMutex, portMAX_DELAY);
     // Update time (after delay to start counting at 0 and have no issues with alarm)
     if (seconds < 59) seconds++;
     else
@@ -107,6 +114,7 @@ void vTaskClock(void *pvParameters)
         hours++;
       }
     }
+    xSemaphoreGive(xClockMutex);
   }
 }
 
@@ -118,8 +126,9 @@ void vTaskSensors(void *pvParameters)
     temp = (uint8_t)sensor.temp(); // TODO: better to use a float?
     lum = (uint8_t)pot1.read();
 
-    // Print sensors' values
+    // CRITICAL SECTION
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
+    // Print sensors' values
     lcd.locate(4,20);    // temperature
     lcd.printf("%u C ", temp); 
     lcd.locate(107, 20); // luminosity
@@ -137,11 +146,11 @@ void vTaskSensors(void *pvParameters)
     record_nr %= 20;
 
     // Handle alarm
-    xSemaphoreTake(xAlarmMutex, portMAX_DELAY); // take mutex to avoid modification of alarm paramaters
     if (alaf)
     {
       if (temp > alat)
       {
+        // CRITICAL SECTION
         xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
         lcd.locate(87,2);
         lcd.printf("T", temp);
@@ -151,6 +160,7 @@ void vTaskSensors(void *pvParameters)
       
       if (lum > alal)
       {
+        // CRITICAL SECTION
         xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
         lcd.locate(97,2);
         lcd.printf("L");
@@ -158,7 +168,6 @@ void vTaskSensors(void *pvParameters)
         tala_count = tala; // start buzzer (TODO: change approach to a blocking one?)
       }
     }
-    xSemaphoreGive(xAlarmMutex);
     
     // PMON sec delay
     vTaskDelay(pdMS_TO_TICKS(1000 * pmon));
@@ -194,11 +203,8 @@ int main(void) {
   // --- APPLICATION TASKS CAN BE CREATED HERE ---
 
   // Semaphores
-  xClockMutex = xSemaphoreCreateMutex();
-  xParamMutex = xSemaphoreCreateMutex();
-  xAlarmMutex = xSemaphoreCreateMutex();
-  xPrintingMutex = xSemaphoreCreateMutex();
-  xProcessingMutex = xSemaphoreCreateMutex();
+  xClockMutex = xSemaphoreCreateMutex();      // used for hours, minutes, seconds
+  xPrintingMutex = xSemaphoreCreateMutex();   // used for lcd
   // TODO: check return value of all of them?
 
   // Queues
