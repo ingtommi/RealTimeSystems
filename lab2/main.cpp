@@ -18,49 +18,79 @@ AnalogIn pot1(p19); // TODO: fix potentiometer
 PwmOut speaker(p26);
 
 // QUEUES
-QueueHandle_t xSensorQueue, xProcessingInputQueue, xProcessingOutputQueue;
+QueueHandle_t xSensorInputQueue, xSensorOutputQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
-// SEMAPHORES
+// SEMAPHORES & MUTEXES
+SemaphoreHandle_t xAlarmSemaphore;
 SemaphoreHandle_t xClockMutex, xPrintingMutex;
 
 // SHARED DATA
 uint8_t hours = 0, minutes = 0, seconds = 0;
 uint8_t pmon = 3, tala = 5, pproc = 0; 
-uint8_t alah = 0, alam = 0, alas = 0; // keeping default values means no C alarm
+uint8_t alah = 0, alam = 0, alas = 0;
 uint8_t alat = 20, alal = 2;
 bool alaf = 0;                        // alaf = 0 --> a, alaf = 1 --> A
-uint8_t tala_count = 0;               // time left for the buzzer to stop ringing (tala seconds after the start)
 uint8_t temp, lum;                    // sensors' values
-uint8_t nr, wi, ri;                   // ring-buffer parameters
+uint8_t tala_count = 0;               // counter for TaskAlarm
+uint8_t nr = 0, wi = 0, ri = 0;       // ring-buffer parameters (nr = valid records, wi = write index, ri = read index)
 uint8_t record_nr = 0;                // current index
 Record records[NR];                   // ring-buffer
+const Time invalid = {INVALID, INVALID, INVALID};
 
-// BUZZER
-void vTaskAlarm(void *pvParameters) // TODO: make it stop ringing after tala even when the alarm is still present?
+// TIMERS
+void vTaskSensorTimer(void *pvParameters)
 {
+  TickType_t xLastWakeTime = xTaskGetTickCount(); // needed by vTaskDelayUntil()
+  Sender sender = TIMER;
+  
   for (;;) 
   {
-    /*
-    ALTERNATIVE IDEA: keep this task blocked if no alarm condition. If unblocked, use delay for controlling the time.
-    */
+    xQueueSend(xSensorInputQueue, &sender, portMAX_DELAY);       // unblock TaskSensors
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pmon)); // delay pmon sec
+  }
+}
+
+void vTaskProcessingTimer(void *pvParameters)
+{
+  TickType_t xLastWakeTime = xTaskGetTickCount(); // needed by vTaskDelayUntil()
+  Interval interval = {invalid, invalid};
+  Sender sender = TIMER;
+  InputData input = {interval, sender};  
+  for (;;) 
+  {
+    xQueueSend(xProcessingInputQueue, &input, portMAX_DELAY);      // unblock TaskSensors
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pproc));  // delay pproc sec
+  }
+}
+
+// BUZZER
+void vTaskAlarm(void *pvParameters)
+{
+  TickType_t xLastWakeTime = xTaskGetTickCount(); // needed by vTaskDelayUntil()
+  
+  for (;;) 
+  {
+    // Block until semaphore is given
+    xSemaphoreTake(xAlarmSemaphore, portMAX_DELAY);
     
-    // Handle buzzer (TODO: problem is that buzzer will not start immediatley, only at following execution of this task)
     if (tala_count != 0)
     {
-      speaker = 0.5;
+      speaker = 0.5;                                        // turn on buzzer
       tala_count--;
+      xSemaphoreGive(xAlarmSemaphore);                      // give the semaphore to allow further execution
+      vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000)); // delay 1 sec
     }
     else
-      speaker = 0;
-    
-    // 1 sec delay (TODO: check if 1s is enough for the other tasks to execute, if not change approach)
-    vTaskDelay(pdMS_TO_TICKS(1000));
+      speaker = 0;                                          // turn off buzzer
+      // Task will block because no semaphore is given
   }
 }
 
 // CLOCK
 void vTaskClock(void *pvParameters)
 {
+  TickType_t xLastWakeTime = xTaskGetTickCount(); // needed by vTaskDelayUntil()
+  
   for (;;)
   {
     /* CRITICAL SECTION: 
@@ -91,7 +121,9 @@ void vTaskClock(void *pvParameters)
           lcd.locate(77, 2);
           lcd.printf("C");
           xSemaphoreGive(xPrintingMutex);
-          tala_count = tala; // start buzzer (TODO: change approach to a blocking one?)
+          // Unblock TaskAlarm
+          tala_count = tala;
+          xSemaphoreGive(xAlarmSemaphore);
         }
       }
     }
@@ -99,7 +131,7 @@ void vTaskClock(void *pvParameters)
     xSemaphoreGive(xClockMutex);
 
     // 1 sec delay
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
 
     xSemaphoreTake(xClockMutex, portMAX_DELAY);
     // Update time (after delay to start counting at 0 and have no issues with alarm)
@@ -121,11 +153,28 @@ void vTaskClock(void *pvParameters)
 // SENSORS
 void vTaskSensors(void *pvParameters)
 {
-  for (;;) if (pmon != 0)
+  Sender sender;
+  
+  for (;;)
   {
+    // Blocked until element is written in the queue
+    xQueueReceive(xSensorInputQueue, &sender, portMAX_DELAY);
+    
+    // Read data
     temp = (uint8_t)sensor.temp(); // TODO: better to use a float?
     lum = (uint8_t)pot1.read();
-
+    
+    // Save record
+    records[wi].hours = hours;
+    records[wi].minutes = minutes;
+    records[wi].seconds = seconds;
+    records[wi].temperature = temp;
+    records[wi].luminosity = lum;
+    // Increment parameters
+    wi++;
+    wi %= NR;
+    if (nr < NR) nr++;
+    
     // CRITICAL SECTION
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
     // Print sensors' values
@@ -135,15 +184,12 @@ void vTaskSensors(void *pvParameters)
     lcd.printf("L %u", lum);
     xSemaphoreGive(xPrintingMutex);
     
-    // Save record
-    records[record_nr].hours = hours;
-    records[record_nr].minutes = minutes;
-    records[record_nr].seconds = seconds;
-    records[record_nr].temperature = temp;
-    records[record_nr].luminosity = lum;
-    // Increment index
-    record_nr++;
-    record_nr %= 20;
+    if (sender == CONSOLE)
+    {
+      // Send data to user
+      Sensor values = {temp, lum};
+      xQueueSend(xSensorOutputQueue, (void*)&values, portMAX_DELAY);
+    }
 
     // Handle alarm
     if (alaf)
@@ -155,7 +201,9 @@ void vTaskSensors(void *pvParameters)
         lcd.locate(87,2);
         lcd.printf("T", temp);
         xSemaphoreGive(xPrintingMutex);
-        tala_count = tala; // start buzzer (TODO: change approach to a blocking one?)
+        // Unblock TaskAlarm
+        tala_count = tala;
+        xSemaphoreGive(xAlarmSemaphore);
       }
       
       if (lum > alal)
@@ -165,24 +213,52 @@ void vTaskSensors(void *pvParameters)
         lcd.locate(97,2);
         lcd.printf("L");
         xSemaphoreGive(xPrintingMutex);
-        tala_count = tala; // start buzzer (TODO: change approach to a blocking one?)
+        // Unblock TaskAlarm
+        tala_count = tala;
+        xSemaphoreGive(xAlarmSemaphore);
       }
     }
-    
-    // PMON sec delay
-    vTaskDelay(pdMS_TO_TICKS(1000 * pmon));
   }
 }
 
 // PROCESSING
 void vTaskProcessing(void *pvParameters)
 {
+  InputData input;
+  Time time1, time2;
+  uint8_t temp, lum, maxT, minT, maxL, minL;
+  float meanT, meanL;
+  
   for (;;)
   {
-    // TODO: implement features 
+    // Blocked until element is written in the queue
+    xQueueReceive(xProcessingInputQueue, &input, portMAX_DELAY);
     
-    // PPROC sec delay
-    vTaskDelay(pdMS_TO_TICKS(1000 * pproc));
+    switch (input.sender)
+    {
+      case TIMER:
+        // Read data from memory
+        temp = records[ri].temperature;
+        lum = records[ri].luminosity;
+        
+        // TODO: Represent T on RGB led, L on normal leds
+        
+        // Increment index
+        ri++;
+        ri %= NR;
+        break;
+        
+      case CONSOLE:
+        Time time1 = input.interval.time1;
+        Time time2 = input.interval.time2;
+        
+        // TODO: compute max, min, mean values from records in given interval
+        
+        // Send data to user
+        OutputData output = {maxT, minT, meanT, maxL, minL, meanL};
+        xQueueSend(xProcessingOutputQueue, (void*)&output, portMAX_DELAY);
+        break;
+    }
   }
 }
 
@@ -202,20 +278,26 @@ int main(void) {
 
   // --- APPLICATION TASKS CAN BE CREATED HERE ---
 
-  // Semaphores
-  xClockMutex = xSemaphoreCreateMutex();      // used for hours, minutes, seconds
-  xPrintingMutex = xSemaphoreCreateMutex();   // used for lcd
-  // TODO: check return value of all of them?
+  // Semaphores and mutexes
+  xAlarmSemaphore = xSemaphoreCreateBinary();      // used to unblock Alarm  
+  xClockMutex = xSemaphoreCreateMutex();           // used for hours, minutes, seconds
+  xPrintingMutex = xSemaphoreCreateMutex();        // used for lcd
 
   // Queues
-  xSensorQueue = xQueueCreate(1, sizeof(Sensor));
-  xProcessingInputQueue = xQueueCreate(1, sizeof(Interval));
-  xProcessingOutputQueue = xQueueCreate(1, sizeof(Process));
+  xSensorInputQueue = xQueueCreate(1, sizeof(Sender));
+  xSensorOutputQueue = xQueueCreate(1, sizeof(Sensor));
+  xProcessingInputQueue = xQueueCreate(1, sizeof(InputData));
+  xProcessingOutputQueue = xQueueCreate(1, sizeof(OutputData));
+  
+  //TODO: check mutexes and queues are not NULL?
   
   // Tasks (TODO: check priorities)
+  
+  xTaskCreate(vTaskAlarm, "Alarm", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
+  xTaskCreate(vTaskSensorTimer, "Timer1", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
+  xTaskCreate(vTaskProcessingTimer, "Timer2", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
   xTaskCreate(vTaskClock, "Clock", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
   xTaskCreate(vTaskSensors, "Sensors", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
-  xTaskCreate(vTaskAlarm, "Alarm", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
   xTaskCreate(vTaskProcessing, "Processing", 2*configMINIMAL_STACK_SIZE, NULL, 2, NULL);
   xTaskCreate(vTaskConsole, "Console", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
   

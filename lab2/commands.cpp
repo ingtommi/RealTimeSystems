@@ -11,7 +11,7 @@
 
 extern C12832 lcd;
 
-extern QueueHandle_t xSensorQueue, xProcessingQueue, xProcessingInputQueue, xProcessingOutputQueue;
+extern QueueHandle_t xSensorInputQueue, xSensorOutputQueue, xProcessingQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
 extern SemaphoreHandle_t xClockMutex, xPrintingMutex;
 
@@ -21,7 +21,6 @@ extern uint8_t alah, alam, alas, alat, alal;
 extern bool alaf;
 extern uint8_t nr, wi, ri;
 extern Record records[NR];
-
 const Time invalid = {INVALID, INVALID, INVALID};
 
 bool checkTime(Time *time);
@@ -66,13 +65,15 @@ void cmd_sc (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_rtl (int argc, char** argv) 
 {
+  Sender sender = CONSOLE;
   Sensor values;
 
-  // TODO: execute TaskSensor
-
-  if (xQueueReceive(xSensorQueue, &values, portMAX_DELAY) == pdPASS)
-    // Display read values
-    printf("\nTemperature = %u °C, Luminosity = %u\n", values.temp, values.lum);
+  // Unblock TaskSensors
+  xQueueSend(xSensorInputQueue, &sender, portMAX_DELAY);
+  // Receive data (returned value not checked because portMAX_DELAY is used)
+  xQueueReceive(xSensorOutputQueue, &values, portMAX_DELAY);
+  // Display read values
+  printf("\nTemperature = %u °C, Luminosity = %u\n", values.temp, values.lum);
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_rp  - read parameters (pmon, tala, pproc)
@@ -175,7 +176,7 @@ void cmd_dtl (int argc, char** argv)
   if (argc == 3)
   {
     short t = atoi(argv[1]), l = atoi(argv[2]);
-    if (t >= 0 && t <= 50) // check temperature
+    if (t >= 0 && t <= 50)  // check temperature
     {
       if (l >= 0 && l <= 3) // check luminosity
       {
@@ -273,21 +274,22 @@ void cmd_pr (int argc, char** argv)
 {
   Time time1, time2;
   Interval interval;
-  Process process;
+  Sender sender = CONSOLE;
+  InputData input;
+  OutputData output;
 
   switch (argc)
   {
     case 1:
       interval.time1 = invalid;
       interval.time2 = invalid;
+      input.interval = interval; input.sender = sender;
       // Send data
-      xQueueSend(xProcessingInputQueue, (void*)&interval, portMAX_DELAY);
+      xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);
       // Receive data
-      if (xQueueReceive(xProcessingOutputQueue, &process, portMAX_DELAY) == pdPASS)
-      {
-        printf("\nTemperature (max, min, mean) = %u, %u, %f", process.maxT, process.minT, process.meanT);
-        printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", process.maxL, process.minL, process.meanL);
-      }
+      xQueueReceive(xProcessingOutputQueue, &output, portMAX_DELAY);
+      printf("\nTemperature (max, min, mean) = %u, %u, %f", output.maxT, output.minT, output.meanT);
+      printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", output.maxL, output.minL, output.meanL);
       break;
 
     case 4:
@@ -298,14 +300,13 @@ void cmd_pr (int argc, char** argv)
       {
         interval.time1 = time1;
         interval.time2 = invalid;
+        input.interval = interval; input.sender = sender;
         // Send data
-        xQueueSend(xProcessingInputQueue, (void*)&interval, portMAX_DELAY);
+        xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);
         // Receive data
-        if (xQueueReceive(xProcessingOutputQueue, &process, portMAX_DELAY) == pdPASS)
-        {
-          printf("\nTemperature (max, min, mean) = %u, %u, %f", process.maxT, process.minT, process.meanT);
-          printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", process.maxL, process.minL, process.meanL);
-        }
+        xQueueReceive(xProcessingOutputQueue, &output, portMAX_DELAY);
+        printf("\nTemperature (max, min, mean) = %u, %u, %f", output.maxT, output.minT, output.meanT);
+        printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", output.maxL, output.minL, output.meanL);
       }
       else printf("\nInvalid time format!\n");
       break;
@@ -323,14 +324,13 @@ void cmd_pr (int argc, char** argv)
         {
           interval.time1 = time1;
           interval.time2 = time2;
+          input.interval = interval; input.sender = sender;
           // Send data
-          xQueueSend(xProcessingInputQueue, (void*)&interval, portMAX_DELAY);
+          xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);
           // Receive data
-          if (xQueueReceive(xProcessingOutputQueue, &process, portMAX_DELAY) == pdPASS)
-          {
-            printf("\nTemperature (max, min, mean) = %u, %u, %f", process.maxT, process.minT, process.meanT);
-            printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", process.maxL, process.minL, process.meanL);
-          }
+          xQueueReceive(xProcessingOutputQueue, &output, portMAX_DELAY);
+          printf("\nTemperature (max, min, mean) = %u, %u, %f", output.maxT, output.minT, output.meanT);
+          printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", output.maxL, output.minL, output.meanL);
         }
         else printf("\nInvalid time interval!\n");
       }

@@ -6,7 +6,13 @@
 #define NR 20 // maximum size of the buffer
 #define INVALID -1
 
-// short data type used to avoid misdetection of overflows finishing in the correct range
+// Used for tasks receiving data from multiple sources
+typedef enum
+{
+  TIMER,
+  CONSOLE
+} Sender;
+
 typedef struct 
 {
   short hours;
@@ -20,12 +26,21 @@ typedef struct
   Time time2;
 } Interval;
 
+// Console/Timer -> Processing
+typedef struct
+{
+  Interval interval;
+  Sender sender;
+} InputData;
+
+// Sensors -> Console
 typedef struct
 {
   uint8_t temp;
   uint8_t lum;
 } Sensor;
 
+// Sensors -> memory, memory -> Processing
 typedef struct
 {
   uint8_t hours;
@@ -35,6 +50,7 @@ typedef struct
   uint8_t luminosity;
 } Record;
 
+// Processing -> Console
 typedef struct
 {
   uint8_t maxT;
@@ -43,6 +59,6 @@ typedef struct
   uint8_t maxL;
   uint8_t minL;
   float meanL;
-} Process;
+} OutputData;
 
 #endif /* SHARED_H */
