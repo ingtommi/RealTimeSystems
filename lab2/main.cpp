@@ -10,12 +10,12 @@
 // FUNCTIONS
 extern void monitor(void);
 
-//DigitalOut led1(LED1);
-C12832 lcd(p5, p7, p6, p8, p11);
-LM75B sensor(p28, p27);
-Serial pc(USBTX, USBRX);
-AnalogIn pot1(p19); // TODO: fix potentiometer
-PwmOut speaker(p26);
+DigitalOut led1(LED1); led2(LED2), led3(LED3), led4(LED4); // LEDs
+PwmOut r(p23), g(p24), b(p25), speaker(p26);               // RGB LED and buzzer
+C12832 lcd(p5, p7, p6, p8, p11);                           // LCD
+LM75B sensor(p28, p27);                                    // T sensor
+AnalogIn pot1(p19);                                        // Potentiometer (L sensor)
+Serial pc(USBTX, USBRX);                                   // Serial
 
 // TASKS
 TaskHandle_t xSensorTimer, xProcessingTimer;
@@ -165,8 +165,8 @@ void vTaskSensors(void *pvParameters)
     xQueueReceive(xSensorInputQueue, &sender, portMAX_DELAY);
     
     // Read data
-    temp = (uint8_t)sensor.temp(); // TODO: better to use a float?
-    lum = (uint8_t)pot1.read();
+    temp = (uint8_t)sensor.temp();
+    lum = pot1.read_u16() >> 14; // convert L to {0...3}
     
     // Save record
     records[wi].hours = hours;

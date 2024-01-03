@@ -97,7 +97,9 @@ void cmd_mmp (int argc, char** argv)
     short s = atoi(argv[1]);
     if (s >= 0 && s < 60) // check seconds
     {
-      // TODO: mutex needed? what if this task is preempted before it is able to suspend/resume? Set task priority to highest?
+      // CRITICAL SECTION: change priority to avoid this task being preempted before suspending/resuming the timer
+      // (A mutex would only guarantee pmon will not be modified by others, not correct suspend/resume)
+      vTaskPrioritySet(NULL, 5); // NULL refers to current task
       pmon = (uint8_t)s;
       // Suspend TaskSensorTimer if pmon is 0
       if (pmon == 0)
@@ -109,6 +111,8 @@ void cmd_mmp (int argc, char** argv)
           vTaskResume(xSensorTimer);
       }
       printf("\nMonitoring period correctly set!\n");
+      vTaskPrioritySet(NULL, 1);
+      // END OF CRITICAL SECTION
     }
     else printf("\nInvalid seconds!\n");
   }
@@ -144,7 +148,9 @@ void cmd_mpp (int argc, char** argv)
     short s = atoi(argv[1]);
     if (s >= 0 && s < 60) // check seconds
     {
-      // TODO: mutex needed? what if this task is preempted before it is able to suspend/resume? Set task priority to highest?
+      // CRITICAL SECTION: change priority to avoid this task being preempted before suspending/resuming the timer
+      // (A mutex would only guarantee pproc will not be modified by others, not correct suspend/resume)
+      vTaskPrioritySet(NULL, 5); // NULL refers to current task
       pproc = (uint8_t)s;
       // Suspend TaskProcessingTimer if pproc is 0
       if (pproc == 0)
@@ -156,6 +162,8 @@ void cmd_mpp (int argc, char** argv)
           vTaskResume(xProcessingTimer);
       }
       printf("\nMonitoring period correctly set!\n");
+      vTaskPrioritySet(NULL, 1);
+      // END OF CRITICAL SECTION
     }
     else printf("\nInvalid seconds!\n");
   }
