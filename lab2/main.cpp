@@ -17,6 +17,9 @@ Serial pc(USBTX, USBRX);
 AnalogIn pot1(p19); // TODO: fix potentiometer
 PwmOut speaker(p26);
 
+// TASKS
+TaskHandle_t xSensorTimer, xProcessingTimer;
+
 // QUEUES
 QueueHandle_t xSensorInputQueue, xSensorOutputQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
@@ -37,7 +40,7 @@ uint8_t record_nr = 0;                // current index
 Record records[NR];                   // ring-buffer
 const Time invalid = {INVALID, INVALID, INVALID};
 
-// TIMERS
+// TIMERS (suspended if pmon/pproc are 0)
 void vTaskSensorTimer(void *pvParameters)
 {
   TickType_t xLastWakeTime = xTaskGetTickCount(); // needed by vTaskDelayUntil()
@@ -56,6 +59,7 @@ void vTaskProcessingTimer(void *pvParameters)
   Interval interval = {invalid, invalid};
   Sender sender = TIMER;
   InputData input = {interval, sender};  
+  
   for (;;) 
   {
     xQueueSend(xProcessingInputQueue, &input, portMAX_DELAY);      // unblock TaskSensors
@@ -289,17 +293,20 @@ int main(void) {
   xProcessingInputQueue = xQueueCreate(1, sizeof(InputData));
   xProcessingOutputQueue = xQueueCreate(1, sizeof(OutputData));
   
-  //TODO: check mutexes and queues are not NULL?
+  //TODO: check semaphore, mutexes and queues are not NULL?
   
   // Tasks (TODO: check priorities)
   
   xTaskCreate(vTaskAlarm, "Alarm", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
-  xTaskCreate(vTaskSensorTimer, "Timer1", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
-  xTaskCreate(vTaskProcessingTimer, "Timer2", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
+  xTaskCreate(vTaskSensorTimer, "TimerPMON", 2*configMINIMAL_STACK_SIZE, NULL, 4, &xSensorTimer);
+  xTaskCreate(vTaskProcessingTimer, "TimerPPROC", 2*configMINIMAL_STACK_SIZE, NULL, 4, &xProcessingTimer);
   xTaskCreate(vTaskClock, "Clock", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
   xTaskCreate(vTaskSensors, "Sensors", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
   xTaskCreate(vTaskProcessing, "Processing", 2*configMINIMAL_STACK_SIZE, NULL, 2, NULL);
   xTaskCreate(vTaskConsole, "Console", 2*configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+  
+  // Suspend TaskProcessingTimer because pproc is 0 by default. Task will be resumed when user modifies pproc.
+  vTaskSuspend(xProcessingTimer);
   
   // Start the created tasks running
   vTaskStartScheduler();

@@ -1,0 +1,5 @@
+ROOT=.
+DEVICE_ID[/home/studio/workspace/testFreeRTOS]=101000000000000000000002F7F326D5
+DEVICE_TYPE[/home/studio/workspace/testFreeRTOS]=connected
+TARGET=LPC1768
+TARGET_CODE=1010

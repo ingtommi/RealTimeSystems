@@ -11,6 +11,8 @@
 
 extern C12832 lcd;
 
+extern TaskHandle_t xSensorTimer, xProcessingTimer;
+
 extern QueueHandle_t xSensorInputQueue, xSensorOutputQueue, xProcessingQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
 extern SemaphoreHandle_t xClockMutex, xPrintingMutex;
@@ -88,13 +90,24 @@ void cmd_rp (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_mmp (int argc, char** argv) 
 {
+  eTaskState TimerState = eTaskGetState(xSensorTimer);
+  
   if (argc == 2)
   {
     short s = atoi(argv[1]);
     if (s >= 0 && s < 60) // check seconds
     {
-      // Mutex not needed if we accept the modification to be available at the latest on the second execution of TaskSensors
+      // TODO: mutex needed? what if this task is preempted before it is able to suspend/resume? Set task priority to highest?
       pmon = (uint8_t)s;
+      // Suspend TaskSensorTimer if pmon is 0
+      if (pmon == 0)
+        vTaskSuspend(xSensorTimer);
+      // Resume TaskSensorTimer if pmon is not 0 and task was previously suspended
+      else
+      {
+        if (TimerState == eSuspended)
+          vTaskResume(xSensorTimer);
+      }
       printf("\nMonitoring period correctly set!\n");
     }
     else printf("\nInvalid seconds!\n");
@@ -124,13 +137,24 @@ void cmd_mta (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_mpp (int argc, char** argv) 
 {
+  eTaskState TimerState = eTaskGetState(xProcessingTimer);
+  
   if (argc == 2)
   {
     short s = atoi(argv[1]);
     if (s >= 0 && s < 60) // check seconds
     {
-      // Mutex not needed if we accept the modification to be available at the latest on the second execution of TaskProcessing
+      // TODO: mutex needed? what if this task is preempted before it is able to suspend/resume? Set task priority to highest?
       pproc = (uint8_t)s;
+      // Suspend TaskProcessingTimer if pproc is 0
+      if (pproc == 0)
+        vTaskSuspend(xProcessingTimer);
+      // Resume TaskProcessingTimer if pproc is not 0 and task was previously suspended
+      else
+      {
+        if (TimerState == eSuspended)
+          vTaskResume(xProcessingTimer);
+      }
       printf("\nMonitoring period correctly set!\n");
     }
     else printf("\nInvalid seconds!\n");
@@ -340,9 +364,9 @@ void cmd_pr (int argc, char** argv)
     default: printf("\nInvalid number of arguments!\n");
   }
 }
-
-// --- UTILITY ---
-
+/*-------------------------------------------------------------------------+
+| UTILITY
++--------------------------------------------------------------------------*/ 
 bool checkTime(Time *time)
 {
   if (time->hours < 0 || time->hours > 23) return false;
