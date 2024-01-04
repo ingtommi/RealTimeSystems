@@ -9,13 +9,16 @@
 
 // FUNCTIONS
 extern void monitor(void);
-
-DigitalOut led1(LED1); led2(LED2), led3(LED3), led4(LED4); // LEDs
-PwmOut r(p23), g(p24), b(p25), speaker(p26);               // RGB LED and buzzer
-C12832 lcd(p5, p7, p6, p8, p11);                           // LCD
-LM75B sensor(p28, p27);                                    // T sensor
-AnalogIn pot1(p19);                                        // Potentiometer (L sensor)
-Serial pc(USBTX, USBRX);                                   // Serial
+bool isInvalid(Time *time);
+bool isInInterval(Record *record, Time *start);
+bool isInInterval(Record *record, Time *start, Time *end);
+  
+BusOut leds(LED1,LED2,LED3,LED4);             // LEDs
+PwmOut r(p23), g(p24), b(p25), speaker(p26);  // RGB LED and buzzer
+C12832 lcd(p5, p7, p6, p8, p11);              // LCD
+LM75B sensor(p28, p27);                       // T sensor
+AnalogIn pot1(p19);                           // Potentiometer (L sensor)
+Serial pc(USBTX, USBRX);                      // Serial
 
 // TASKS
 TaskHandle_t xSensorTimer, xProcessingTimer;
@@ -32,12 +35,13 @@ uint8_t hours = 0, minutes = 0, seconds = 0;
 uint8_t pmon = 3, tala = 5, pproc = 0; 
 uint8_t alah = 0, alam = 0, alas = 0;
 uint8_t alat = 20, alal = 2;
-bool alaf = 0;                        // alaf = 0 --> a, alaf = 1 --> A
-uint8_t temp, lum;                    // sensors' values
-uint8_t tala_count = 0;               // counter for TaskAlarm
-uint8_t nr = 0, wi = 0, ri = 0;       // ring-buffer parameters (nr = valid records, wi = write index, ri = read index)
-uint8_t record_nr = 0;                // current index
-Record records[NR];                   // ring-buffer
+bool alaf = 0;                    // alaf = 0 --> a, alaf = 1 --> A
+uint8_t temp, lum;                // sensors' values
+uint8_t tala_count = 0;           // counter for TaskAlarm
+uint8_t nr = 0, wi = 0, ri = 0;   // ring-buffer parameters (nr = valid records, wi = write index, ri = read index)
+uint8_t record_nr = 0;            // current index
+Record records[NR];               // ring-buffer
+
 const Time invalid = {INVALID, INVALID, INVALID};
 
 // TIMERS (suspended if pmon/pproc are 0)
@@ -48,7 +52,7 @@ void vTaskSensorTimer(void *pvParameters)
   
   for (;;) 
   {
-    xQueueSend(xSensorInputQueue, &sender, portMAX_DELAY);       // unblock TaskSensors
+    xQueueSend(xSensorInputQueue, (void*)&sender, portMAX_DELAY);       // unblock TaskSensors
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pmon)); // delay pmon sec
   }
 }
@@ -62,7 +66,7 @@ void vTaskProcessingTimer(void *pvParameters)
   
   for (;;) 
   {
-    xQueueSend(xProcessingInputQueue, &input, portMAX_DELAY);      // unblock TaskSensors
+    xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);      // unblock TaskSensors
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pproc));  // delay pproc sec
   }
 }
@@ -80,12 +84,16 @@ void vTaskAlarm(void *pvParameters)
     if (tala_count != 0)
     {
       speaker = 0.5;                                        // turn on buzzer
+      printf("\nAlarmTask: Speaker ON\n"); //DEBUG
       tala_count--;
       xSemaphoreGive(xAlarmSemaphore);                      // give the semaphore to allow further execution
       vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000)); // delay 1 sec
     }
     else
+    {
       speaker = 0;                                          // turn off buzzer
+      printf("\nAlarmTask: Speaker OFF\n"); //DEBUG
+    }
       // Task will block because no semaphore is given
   }
 }
@@ -198,19 +206,19 @@ void vTaskSensors(void *pvParameters)
     // Handle alarm
     if (alaf)
     {
-      if (temp > alat)
+      if (temp >= alat)
       {
         // CRITICAL SECTION
         xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
         lcd.locate(87,2);
-        lcd.printf("T", temp);
+        lcd.printf("T");
         xSemaphoreGive(xPrintingMutex);
         // Unblock TaskAlarm
         tala_count = tala;
         xSemaphoreGive(xAlarmSemaphore);
       }
       
-      if (lum > alal)
+      if (lum >= alal)
       {
         // CRITICAL SECTION
         xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
@@ -230,13 +238,17 @@ void vTaskProcessing(void *pvParameters)
 {
   InputData input;
   Time time1, time2;
-  uint8_t temp, lum, maxT, minT, maxL, minL;
+  uint8_t temp, lum;
+  uint8_t count, new_temp, new_lum, sum_temp, sum_lum;
+  uint8_t maxT, minT, maxL, minL;
   float meanT, meanL;
   
   for (;;)
   {
     // Blocked until element is written in the queue
     xQueueReceive(xProcessingInputQueue, &input, portMAX_DELAY);
+    // Initialize variables
+    count = 0; sum_temp = 0; sum_lum = 0; maxT = 0; minT = 50; maxL = 0; minL = 4;
     
     switch (input.sender)
     {
@@ -245,8 +257,25 @@ void vTaskProcessing(void *pvParameters)
         temp = records[ri].temperature;
         lum = records[ri].luminosity;
         
-        // TODO: Represent T on RGB led, L on normal leds
-        
+        // RGB
+        r = 1 - temp / 50.0; // temp = 50 -> r = 1, b = 0 (g = 0 always)
+        b = temp / 50.0;
+        // LEDs
+        switch(lum)
+        {
+          case 0:
+            leds = 0x1; // 0001
+            break;
+          case 1:
+            leds = 0x3; // 0011
+            break;
+          case 2:
+            leds = 0x7; // 0111
+            break;
+          case 3:
+            leds = 0xf; // 1111
+            break;
+        }
         // Increment index
         ri++;
         ri %= NR;
@@ -256,7 +285,74 @@ void vTaskProcessing(void *pvParameters)
         Time time1 = input.interval.time1;
         Time time2 = input.interval.time2;
         
-        // TODO: compute max, min, mean values from records in given interval
+        // Process totality of records
+        if (isInvalid(&time1) && isInvalid(&time2))
+        {
+          for (uint8_t i = 0; i < nr; i++) // read valid records (not an issue if not ordered)
+          {
+            new_temp = records[i].temperature;
+            new_lum = records[i].luminosity;
+            // T
+            if (new_temp > maxT) maxT = new_temp; // max
+            if (new_temp < minT) minT = new_temp; // min
+            sum_temp += new_temp;
+            // L
+            if (new_lum > maxL) maxL = new_lum;   // max
+            if (new_lum < minL) minL = new_lum;   // min
+            sum_lum += new_lum;
+          }
+          meanT = sum_temp / float(nr);         // mean
+          meanL = sum_lum / float(nr);
+        }
+        // Process from t1 to end
+        else if (isInvalid(&time2))
+        {
+          for (uint8_t i = 0; i < nr; i++) // read valid records
+          {
+            if (isInInterval(&records[i], &time1)) // save only records in interval
+            {
+              count++;                                   // count records in interval
+              
+              new_temp = records[i].temperature;
+              new_lum = records[i].luminosity;
+              // T
+              if (new_temp > maxT) maxT = new_temp; // max
+              if (new_temp < minT) minT = new_temp; // min
+              sum_temp += new_temp;
+              // L
+              if (new_lum > maxL) maxL = new_lum;   // max
+              if (new_lum < minL) minL = new_lum;   // min
+              sum_lum += new_lum;
+            }
+          }
+          meanT = sum_temp / float(count);          // mean
+          meanL = sum_lum / float(count);
+        }
+        // Process from t1 to t2
+        else
+        {
+          for (uint8_t i = 0; i < nr; i++) // read valid records
+          {
+            if (isInInterval(&records[i], &time1, &time2))  // save only records in interval
+            {
+              count++;                              // count records in interval
+              
+              new_temp = records[i].temperature;
+              new_lum = records[i].luminosity;
+              // T
+              if (new_temp > maxT) maxT = new_temp; // max
+              if (new_temp < minT) minT = new_temp; // min
+              sum_temp += new_temp;
+              // L
+              if (new_lum > maxL) maxL = new_lum;   // max
+              if (new_lum < minL) minL = new_lum;   // min
+              sum_lum += new_lum;
+            }
+            // no break because ring-buffer can be out or chronological order
+          }
+          meanT = sum_temp / float(count);          // mean
+          meanL = sum_lum / float(count);
+        }
         
         // Send data to user
         OutputData output = {maxT, minT, meanT, maxL, minL, meanL};
@@ -282,6 +378,8 @@ int main(void) {
 
   // --- APPLICATION TASKS CAN BE CREATED HERE ---
 
+  r = 1; g = 1; b = 1; // RGB off                   
+
   // Semaphores and mutexes
   xAlarmSemaphore = xSemaphoreCreateBinary();      // used to unblock Alarm  
   xClockMutex = xSemaphoreCreateMutex();           // used for hours, minutes, seconds
@@ -295,8 +393,7 @@ int main(void) {
   
   //TODO: check semaphore, mutexes and queues are not NULL?
   
-  // Tasks (TODO: check priorities)
-  
+  // Tasks
   xTaskCreate(vTaskAlarm, "Alarm", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
   xTaskCreate(vTaskSensorTimer, "TimerPMON", 2*configMINIMAL_STACK_SIZE, NULL, 4, &xSensorTimer);
   xTaskCreate(vTaskProcessingTimer, "TimerPPROC", 2*configMINIMAL_STACK_SIZE, NULL, 4, &xProcessingTimer);
@@ -314,4 +411,46 @@ int main(void) {
   // Execution will only reach here if there was insufficient heap to start the scheduler
   for (;;);
   return 0;
+}
+
+// ---- UTILITY ----
+
+bool isInvalid(Time *time)
+{
+  if (time->hours == invalid.hours) // && time->minutes == invalid.minutes && time->seconds == invalid.seconds)
+    return true;
+  return false;
+}
+
+bool isInInterval(Record *record, Time *start) 
+{
+  uint8_t r_hh = record->hours, r_mm = record->minutes, r_ss = record->seconds;                         // record
+  uint8_t s_hh = uint8_t(start->hours), s_mm = uint8_t(start->minutes), s_ss = uint8_t(start->seconds); // start
+  
+  // record >= time1
+  if (r_hh > s_hh ||                                
+      r_hh == s_hh && r_mm > s_mm ||
+      r_hh == s_hh && r_mm == s_mm && r_ss >= s_ss) 
+    return true;
+  return false;
+}
+
+bool isInInterval(Record *record, Time *start, Time *end)
+{
+  uint8_t r_hh = record->hours, r_mm = record->minutes, r_ss = record->seconds;                         // record
+  uint8_t s_hh = uint8_t(start->hours), s_mm = uint8_t(start->minutes), s_ss = uint8_t(start->seconds); // start
+  uint8_t e_hh = uint8_t(end->hours), e_mm = uint8_t(end->minutes), e_ss = uint8_t(end->seconds);       // end
+  
+  // record >= time1
+  if (r_hh > s_hh ||                                
+      r_hh == s_hh && r_mm > s_mm ||
+      r_hh == s_hh && r_mm == s_mm && r_ss >= s_ss) 
+  {
+    // record <= time2
+    if (r_hh < e_hh ||
+        r_hh == e_hh && r_mm < e_mm ||
+        r_hh == e_hh && r_mm == e_mm && r_ss <= e_ss)
+      return true; 
+  }
+  return false;
 }

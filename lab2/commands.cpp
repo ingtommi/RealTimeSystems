@@ -25,7 +25,7 @@ extern uint8_t nr, wi, ri;
 extern Record records[NR];
 const Time invalid = {INVALID, INVALID, INVALID};
 
-bool checkTime(Time *time);
+bool splitTime(char *arg, Time *time);
 bool compareTime(Time *time1, Time *time2);
 
 /*-------------------------------------------------------------------------+
@@ -34,20 +34,17 @@ bool compareTime(Time *time1, Time *time2);
 void cmd_rc (int argc, char** argv) 
 {
   // Mutex not used to display latest time
-  printf("\nCurrent clock: %02d:%02d:%02d", hours, minutes, seconds);
+  printf("\nCurrent clock: %02d:%02d:%02d\n", hours, minutes, seconds);
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_sc  - set clock
 +--------------------------------------------------------------------------*/ 
 void cmd_sc (int argc, char** argv) 
 {
-  if (argc == 4)
+  if (argc == 2)
   {
     Time time;
-    time.hours = atoi(argv[1]);
-    time.minutes = atoi(argv[2]);
-    time.seconds = atoi(argv[3]);
-    if (checkTime(&time))
+    if (splitTime(argv[1], &time)) // split hh:mm:ss and check if time is consistent
     {
       // CRITICAL SECTION: hours, minutes, seconds may be modified from TaskClock
       xSemaphoreTake(xClockMutex, portMAX_DELAY);
@@ -71,7 +68,7 @@ void cmd_rtl (int argc, char** argv)
   Sensor values;
 
   // Unblock TaskSensors
-  xQueueSend(xSensorInputQueue, &sender, portMAX_DELAY);
+  xQueueSend(xSensorInputQueue, (void*)&sender, portMAX_DELAY);
   // Receive data (returned value not checked because portMAX_DELAY is used)
   xQueueReceive(xSensorOutputQueue, &values, portMAX_DELAY);
   // Display read values
@@ -99,7 +96,7 @@ void cmd_mmp (int argc, char** argv)
     {
       // CRITICAL SECTION: change priority to avoid this task being preempted before suspending/resuming the timer
       // (A mutex would only guarantee pmon will not be modified by others, not correct suspend/resume)
-      vTaskPrioritySet(NULL, 5); // NULL refers to current task
+      vTaskPrioritySet(NULL, 4); // NULL refers to current task
       pmon = (uint8_t)s;
       // Suspend TaskSensorTimer if pmon is 0
       if (pmon == 0)
@@ -150,7 +147,7 @@ void cmd_mpp (int argc, char** argv)
     {
       // CRITICAL SECTION: change priority to avoid this task being preempted before suspending/resuming the timer
       // (A mutex would only guarantee pproc will not be modified by others, not correct suspend/resume)
-      vTaskPrioritySet(NULL, 5); // NULL refers to current task
+      //vTaskPrioritySet(NULL, 4); // NULL refers to current task
       pproc = (uint8_t)s;
       // Suspend TaskProcessingTimer if pproc is 0
       if (pproc == 0)
@@ -162,7 +159,7 @@ void cmd_mpp (int argc, char** argv)
           vTaskResume(xProcessingTimer);
       }
       printf("\nMonitoring period correctly set!\n");
-      vTaskPrioritySet(NULL, 1);
+      //vTaskPrioritySet(NULL, 4);
       // END OF CRITICAL SECTION
     }
     else printf("\nInvalid seconds!\n");
@@ -182,19 +179,16 @@ void cmd_rai (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_dac (int argc, char** argv) 
 {
-  if (argc == 4)
+  if (argc == 2)
   {
     Time time;
-    time.hours = atoi(argv[1]);
-    time.minutes = atoi(argv[2]);
-    time.seconds = atoi(argv[3]);
-    if (checkTime(&time))
+    if (splitTime(argv[1], &time)) // split hh:mm:ss and check if time is consistent
     {
       // Mutex not needed if we accept the modification to be available at the latest on the second execution of TaskClock
       alah = (uint8_t)time.hours;
       alam = (uint8_t)time.minutes;
       alas = (uint8_t)time.seconds;
-      printf("\nClock correctly set!\n");
+      printf("\nClock threshold correctly set!\n");
     }
     else printf("\nInvalid time format!\n");
   }
@@ -230,7 +224,7 @@ void cmd_aa (int argc, char** argv)
 {
   if (argc == 2)
   {
-    short num = atoi(argv[1]);
+    int num = int(argv[1][0]);
     if (num == 65 || num == 97) // ASCII: A = 65, a = 97
     {
       // Mutex not needed if we accept the modification to be available at the latest on the second execution of TaskClock or TaskSensors
@@ -255,6 +249,7 @@ void cmd_cai (int argc, char** argv)
   lcd.locate(97, 2); // L
   lcd.printf(" ");
   xSemaphoreGive(xPrintingMutex);
+  printf("\nAlarm correctly cleared!\n");
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_ir  - information about records (NR, nr, wi, ri)
@@ -277,7 +272,7 @@ void cmd_lr (int argc, char** argv)
       if (i >= 0 && i < NR) // check i
       {
         for (short j = i; j < n; j++)
-          printf("\nRecord %hd: %02u:%02u:%02u %u °C, L %u\n", j, records[j].hours, records[j].minutes, records[j].seconds, records[j].temperature, records[j].luminosity);
+          printf("\nRecord %hd: %02u:%02u:%02u %u°C, %u\n", j, records[j].hours, records[j].minutes, records[j].seconds, records[j].temperature, records[j].luminosity);
       }
       else printf("\nInvalid number of records!\n");
     }
@@ -290,6 +285,7 @@ void cmd_lr (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_dr (int argc, char** argv) 
 {
+  // Delete records
   for (uint8_t i = 0; i < NR; i++)
   {
     records[i].hours = 0;
@@ -298,6 +294,10 @@ void cmd_dr (int argc, char** argv)
     records[i].temperature = 0;
     records[i].luminosity = 0;
   }
+  // Clear parameters
+  nr = 0;
+  wi = 0;
+  printf("\nRecord correctly deleted!\n");
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_pr  - process records (max, min, mean) between instants t1 and t2 (h,m,s)
@@ -320,15 +320,12 @@ void cmd_pr (int argc, char** argv)
       xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);
       // Receive data
       xQueueReceive(xProcessingOutputQueue, &output, portMAX_DELAY);
-      printf("\nTemperature (max, min, mean) = %u, %u, %f", output.maxT, output.minT, output.meanT);
-      printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", output.maxL, output.minL, output.meanL);
+      printf("\nTemperature (max, min, mean) = %u, %u, %.2f", output.maxT, output.minT, output.meanT);
+      printf("\nLuminosity (max, min, mean) = %u, %u, %.2f\n", output.maxL, output.minL, output.meanL);
       break;
 
-    case 4:
-      time1.hours = atoi(argv[1]); 
-      time1.minutes = atoi(argv[2]); 
-      time1.seconds = atoi(argv[3]);
-      if (checkTime(&time1))
+    case 2:
+      if (splitTime(argv[1], &time1)) // split hh:mm:ss and check if time is consistentif (splitTime(argv[1], &time)) // split hh:mm:ss and check if time is consistent
       {
         interval.time1 = time1;
         interval.time2 = invalid;
@@ -343,14 +340,8 @@ void cmd_pr (int argc, char** argv)
       else printf("\nInvalid time format!\n");
       break;
 
-    case 7:
-      time1.hours = atoi(argv[1]); 
-      time1.minutes = atoi(argv[2]); 
-      time1.seconds = atoi(argv[3]);
-      time2.hours = atoi(argv[4]); 
-      time2.minutes = atoi(argv[5]); 
-      time2.seconds = atoi(argv[6]);
-      if (checkTime(&time1) && checkTime(&time2))
+    case 3:
+      if (splitTime(argv[1], &time1) && splitTime(argv[2], &time2)) // split hh:mm:ss and check if time is consistent
       {
         if (compareTime(&time1, &time2))
         {
@@ -375,11 +366,23 @@ void cmd_pr (int argc, char** argv)
 /*-------------------------------------------------------------------------+
 | UTILITY
 +--------------------------------------------------------------------------*/ 
-bool checkTime(Time *time)
+bool splitTime(char *arg, Time *time)
 {
-  if (time->hours < 0 || time->hours > 23) return false;
-  if (time->minutes < 0 || time->minutes > 59) return false;
-  if (time->seconds < 0 || time->seconds > 59) return false;
+  // arg must be in format "hh:mm:ss"
+  if (strlen(arg) != 8 || arg[2] != ':' || arg[5] != ':') // check if length != 8 or wrong format
+    return false;
+  else
+  {
+    char *token = strtok(arg, ":");
+    time->hours = atoi(token);
+    if (time->hours < 0 || time->hours > 23) return false;
+    token = strtok(NULL, ":");
+    time->minutes = atoi(token);
+    if (time->minutes < 0 || time->minutes > 59) return false;
+    token = strtok(NULL, ":");
+    time->seconds = atoi(token);
+    if (time->seconds < 0 || time->seconds > 59) return false;
+  }
   return true;
 }
 

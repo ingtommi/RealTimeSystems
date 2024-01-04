@@ -43,21 +43,21 @@ struct  command_d {
 } const commands[] = {
   {cmd_sos, "sos", "                          - display commands"},
   {cmd_rc,  "rc",  "                           - read clock"},
-  {cmd_sc,  "sc",  " hh mm ss                  - set clock"},
+  {cmd_sc,  "sc",  " hh:mm:ss                  - set clock"},
   {cmd_rtl, "rtl", "                          - read temperature and luminosity"},
   {cmd_rp,  "rp",  "                           - read parameters (pmon, tala, pproc)"},
   {cmd_mmp, "mmp", "p                         - modify monitoring period (seconds - 0 deactivate)"},
   {cmd_mta, "mta", "t                         - modify time alarm (seconds)"},
   {cmd_mpp, "mpp", "p                         - modify processing period (seconds - 0 deactivate)"},
   {cmd_rai, "rai", "                          - read alarm info (clock, temperature, luminosity, active/inactive-A/a)"},
-  {cmd_dac, "dac", "hh mm ss                  - define alarm clock"},
+  {cmd_dac, "dac", "hh:mm:ss                  - define alarm clock"},
   {cmd_dtl, "dtl", "T L                       - define alarm temperature and luminosity"},
-  {cmd_aa,  "aa",  " a                         - activate/deactivate alarms (A/a)"},
+  {cmd_aa,  "aa",  " A/a                       - activate/deactivate alarms (A/a)"},
   {cmd_cai, "cai", "                          - clear alarm info (letters CTL in LCD)"},
   {cmd_ir,  "ir",  "                           - information about records (NR, nr, wi, ri)"},
   {cmd_lr,  "lr",  " n i                       - list n records from index i (0 - oldest)"},
   {cmd_dr,  "dr",  "                           - delete records"},
-  {cmd_pr,  "pr",  " hh1 mm1 ss1 hh2 mm2 ss2   - process records (max, min, mean) between instants t1 and t2 (h,m,s)"}
+  {cmd_pr,  "pr",  "[hh:mm:ss] [hh:mm:ss]      - process records (max, min, mean) between instants t1 and t2"}
 };
 
 #define NCOMMANDS  (sizeof(commands)/sizeof(struct command_d))
