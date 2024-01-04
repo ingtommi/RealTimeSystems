@@ -66,16 +66,14 @@ void vTaskProcessingTimer(void *pvParameters)
   
   for (;;) 
   {
-    xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);      // unblock TaskSensors
-    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pproc));  // delay pproc sec
+    xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);  // unblock TaskSensors
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pproc));     // delay pproc sec
   }
 }
 
 // BUZZER
 void vTaskAlarm(void *pvParameters)
-{
-  TickType_t xLastWakeTime = xTaskGetTickCount(); // needed by vTaskDelayUntil()
-  
+{  
   for (;;) 
   {
     // Block until semaphore is given
@@ -83,17 +81,13 @@ void vTaskAlarm(void *pvParameters)
     
     if (tala_count != 0)
     {
-      speaker = 0.5;                                        // turn on buzzer
-      printf("\nAlarmTask: Speaker ON\n"); //DEBUG
+      speaker = 0.5;                   // turn on buzzer
       tala_count--;
-      xSemaphoreGive(xAlarmSemaphore);                      // give the semaphore to allow further execution
-      vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000)); // delay 1 sec
+      xSemaphoreGive(xAlarmSemaphore); // give the semaphore to allow further execution
+      vTaskDelay(pdMS_TO_TICKS(1000)); // delay 1 sec (vTaskDelayUntil was not working)
     }
     else
-    {
-      speaker = 0;                                          // turn off buzzer
-      printf("\nAlarmTask: Speaker OFF\n"); //DEBUG
-    }
+      speaker = 0;                     // turn off buzzer
       // Task will block because no semaphore is given
   }
 }

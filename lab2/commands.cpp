@@ -10,6 +10,8 @@
 #include "shared.h" // custom header for shared objects
 
 extern C12832 lcd;
+extern PwmOut r, b;
+extern BusOut leds;
 
 extern TaskHandle_t xSensorTimer, xProcessingTimer;
 
@@ -151,7 +153,12 @@ void cmd_mpp (int argc, char** argv)
       pproc = (uint8_t)s;
       // Suspend TaskProcessingTimer if pproc is 0
       if (pproc == 0)
+      {
         vTaskSuspend(xProcessingTimer);
+        // Turn off leds
+        leds = 0x0;   
+        r = 1; b = 1;
+      }
       // Resume TaskProcessingTimer if pproc is not 0 and task was previously suspended
       else
       {
@@ -297,6 +304,7 @@ void cmd_dr (int argc, char** argv)
   // Clear parameters
   nr = 0;
   wi = 0;
+  ri = 0;
   printf("\nRecord correctly deleted!\n");
 }
 /*-------------------------------------------------------------------------+
@@ -320,8 +328,8 @@ void cmd_pr (int argc, char** argv)
       xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);
       // Receive data
       xQueueReceive(xProcessingOutputQueue, &output, portMAX_DELAY);
-      printf("\nTemperature (max, min, mean) = %u, %u, %.2f", output.maxT, output.minT, output.meanT);
-      printf("\nLuminosity (max, min, mean) = %u, %u, %.2f\n", output.maxL, output.minL, output.meanL);
+      printf("\nTemperature (max, min, mean) = %u, %u, %.1f", output.maxT, output.minT, output.meanT);
+      printf("\nLuminosity (max, min, mean) = %u, %u, %.1f\n", output.maxL, output.minL, output.meanL);
       break;
 
     case 2:
