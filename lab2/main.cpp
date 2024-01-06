@@ -28,7 +28,7 @@ QueueHandle_t xSensorInputQueue, xSensorOutputQueue, xProcessingInputQueue, xPro
 
 // SEMAPHORES & MUTEXES
 SemaphoreHandle_t xAlarmSemaphore;
-SemaphoreHandle_t xClockMutex, xPrintingMutex;
+SemaphoreHandle_t xClockMutex, xPrintingMutex, xAlarmMutex, xBufferMutex, xParamMutex;
 
 // SHARED DATA
 uint8_t hours = 0, minutes = 0, seconds = 0;
@@ -39,7 +39,7 @@ bool alaf = 0;                    // alaf = 0 --> a, alaf = 1 --> A
 uint8_t temp, lum;                // sensors' values
 uint8_t tala_count = 0;           // counter for TaskAlarm
 uint8_t nr = 0, wi = 0, ri = 0;   // ring-buffer parameters (nr = valid records, wi = write index, ri = read index)
-uint8_t record_nr = 0;            // current index
+uint8_t n_unread_indices = 0;     // difference between wi and ri
 Record records[NR];               // ring-buffer
 
 const Time invalid = {INVALID, INVALID, INVALID};
@@ -49,11 +49,17 @@ void vTaskSensorTimer(void *pvParameters)
 {
   TickType_t xLastWakeTime = xTaskGetTickCount(); // needed by vTaskDelayUntil()
   Sender sender = TIMER;
+  uint8_t delay;
   
   for (;;) 
   {
-    xQueueSend(xSensorInputQueue, (void*)&sender, portMAX_DELAY);       // unblock TaskSensors
-    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pmon)); // delay pmon sec
+    // CRITICAL SECTION
+    xSemaphoreTake(xParamMutex, portMAX_DELAY);
+    delay = pmon;
+    xSemaphoreGive(xParamMutex);
+    // END OF CRITICAL SECTION
+    xQueueSend(xSensorInputQueue, (void*)&sender, portMAX_DELAY); // unblock TaskSensors
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * delay));  // delay pmon sec
   }
 }
 
@@ -63,11 +69,17 @@ void vTaskProcessingTimer(void *pvParameters)
   Interval interval = {invalid, invalid};
   Sender sender = TIMER;
   InputData input = {interval, sender};  
+  uint8_t delay;
   
   for (;;) 
   {
-    xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);  // unblock TaskSensors
-    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pproc));     // delay pproc sec
+    // CRITICAL SECTION
+    xSemaphoreTake(xParamMutex, portMAX_DELAY);
+    delay = pmon;
+    xSemaphoreGive(xParamMutex);
+    // END OF CRITICAL SECTION
+    xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY); // unblock TaskSensors
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pproc));    // delay pproc sec
   }
 }
 
@@ -115,6 +127,8 @@ void vTaskClock(void *pvParameters)
       lcd.printf("a");
     xSemaphoreGive(xPrintingMutex);
     
+    // CRITICAL SECTION
+    xSemaphoreTake(xAlarmMutex, portMAX_DELAY);
     // Handle alarm
     if (alaf)
     {
@@ -133,12 +147,15 @@ void vTaskClock(void *pvParameters)
         }
       }
     }
-    //CRITICAL SECTION: after the delay, hours, minutes and seconds may be again under modification
+    // END OF CRITICAL SECTION
+    xSemaphoreGive(xAlarmMutex);
+    // END CRITICAL SECTION
     xSemaphoreGive(xClockMutex);
 
     // 1 sec delay
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
 
+    // CRITICAL SECTION: after the delay, hours, minutes and seconds may be again under modification
     xSemaphoreTake(xClockMutex, portMAX_DELAY);
     // Update time (after delay to start counting at 0 and have no issues with alarm)
     if (seconds < 59) seconds++;
@@ -153,6 +170,7 @@ void vTaskClock(void *pvParameters)
       }
     }
     xSemaphoreGive(xClockMutex);
+    // END OF CRITICAL SECTION
   }
 }
 
@@ -170,16 +188,25 @@ void vTaskSensors(void *pvParameters)
     temp = (uint8_t)sensor.temp();
     lum = pot1.read_u16() >> 14; // convert L to {0...3}
     
+    // CRITICAL SECTION
+    xSemaphoreTake(xBufferMutex, portMAX_DELAY);
     // Save record
     records[wi].hours = hours;
     records[wi].minutes = minutes;
     records[wi].seconds = seconds;
     records[wi].temperature = temp;
     records[wi].luminosity = lum;
-    // Increment parameters
-    wi++;
-    wi %= NR;
+    // Increment index
     if (nr < NR) nr++;
+    wi = (wi + 1) % NR;
+    n_unread_indices++;                              // increment difference between wi and ri
+    if (n_unread_indices == NR)                      // if wi finishes the ring and goes over ri
+    {
+      ri = (ri + 1 + (n_unread_indices - NR)) % NR;  // increment ri
+      n_unread_indices = NR - 1;                     // decrement difference
+    }
+    xSemaphoreGive(xBufferMutex);
+    // END OF CRITICAL SECTION
     
     // CRITICAL SECTION
     xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
@@ -197,6 +224,8 @@ void vTaskSensors(void *pvParameters)
       xQueueSend(xSensorOutputQueue, (void*)&values, portMAX_DELAY);
     }
 
+    // CRITICAL SECTION
+    xSemaphoreTake(xAlarmMutex, portMAX_DELAY);
     // Handle alarm
     if (alaf)
     {
@@ -224,6 +253,8 @@ void vTaskSensors(void *pvParameters)
         xSemaphoreGive(xAlarmSemaphore);
       }
     }
+    xSemaphoreGive(xAlarmMutex);
+    // END OF CRITICAL SECTION
   }
 }
 
@@ -233,7 +264,8 @@ void vTaskProcessing(void *pvParameters)
   InputData input;
   Time time1, time2;
   uint8_t temp, lum;
-  uint8_t count, new_temp, new_lum, sum_temp, sum_lum;
+  uint8_t count, new_temp, new_lum, sum_lum;
+  int sum_temp; // 8 bits are not enough
   uint8_t maxT, minT, maxL, minL;
   float meanT, meanL;
   
@@ -247,10 +279,23 @@ void vTaskProcessing(void *pvParameters)
     switch (input.sender)
     {
       case TIMER:
+        // CRITICAL SECTION
+        xSemaphoreTake(xBufferMutex, portMAX_DELAY);
         // Read data from memory
-        temp = records[ri].temperature;
-        lum = records[ri].luminosity;
+        if (nr != NR && n_unread_indices == 0) {} // don't read if there are no elements
+        else
+        {
+          temp = records[ri].temperature;
+          lum = records[ri].luminosity;
+          // Increment index
+          ri = (ri + 1) % NR;       
+          if (n_unread_indices != 0) // if ri was behind wi, reduce distance
+            n_unread_indices--;
+        }
+        xSemaphoreGive(xBufferMutex);
+        // END OF CRITICAL SECTION
         
+        // mutex not used because only r,b,leds only used here
         // RGB
         r = 1 - temp / 50.0; // temp = 50 -> r = 1, b = 0 (g = 0 always)
         b = temp / 50.0;
@@ -270,9 +315,6 @@ void vTaskProcessing(void *pvParameters)
             leds = 0xf; // 1111
             break;
         }
-        // Increment index
-        ri++;
-        ri %= NR;
         break;
         
       case CONSOLE:
@@ -284,8 +326,12 @@ void vTaskProcessing(void *pvParameters)
         {
           for (uint8_t i = 0; i < nr; i++) // read valid records (not an issue if not ordered)
           {
+            // CRITICAL SECTION
+            xSemaphoreTake(xBufferMutex, portMAX_DELAY);
             new_temp = records[i].temperature;
             new_lum = records[i].luminosity;
+            xSemaphoreGive(xBufferMutex);
+            // END OF CRITICAL SECTION
             // T
             if (new_temp > maxT) maxT = new_temp; // max
             if (new_temp < minT) minT = new_temp; // min
@@ -295,7 +341,7 @@ void vTaskProcessing(void *pvParameters)
             if (new_lum < minL) minL = new_lum;   // min
             sum_lum += new_lum;
           }
-          meanT = sum_temp / float(nr);         // mean
+          meanT = sum_temp / float(nr);           // mean
           meanL = sum_lum / float(nr);
         }
         // Process from t1 to end
@@ -303,10 +349,12 @@ void vTaskProcessing(void *pvParameters)
         {
           for (uint8_t i = 0; i < nr; i++) // read valid records
           {
+            // CRITICAL SECTION
+            xSemaphoreTake(xBufferMutex, portMAX_DELAY);
             if (isInInterval(&records[i], &time1)) // save only records in interval
             {
               count++;                                   // count records in interval
-              
+
               new_temp = records[i].temperature;
               new_lum = records[i].luminosity;
               // T
@@ -318,6 +366,8 @@ void vTaskProcessing(void *pvParameters)
               if (new_lum < minL) minL = new_lum;   // min
               sum_lum += new_lum;
             }
+            xSemaphoreGive(xBufferMutex);
+            // END OF CRITICAL SECTION
           }
           meanT = sum_temp / float(count);          // mean
           meanL = sum_lum / float(count);
@@ -327,10 +377,12 @@ void vTaskProcessing(void *pvParameters)
         {
           for (uint8_t i = 0; i < nr; i++) // read valid records
           {
+            // CRITICAL SECTION
+            xSemaphoreTake(xBufferMutex, portMAX_DELAY);
             if (isInInterval(&records[i], &time1, &time2))  // save only records in interval
             {
               count++;                              // count records in interval
-              
+
               new_temp = records[i].temperature;
               new_lum = records[i].luminosity;
               // T
@@ -342,7 +394,8 @@ void vTaskProcessing(void *pvParameters)
               if (new_lum < minL) minL = new_lum;   // min
               sum_lum += new_lum;
             }
-            // no break because ring-buffer can be out or chronological order
+            xSemaphoreGive(xBufferMutex);
+            // END OF CRITICAL SECTION
           }
           meanT = sum_temp / float(count);          // mean
           meanL = sum_lum / float(count);
@@ -375,9 +428,12 @@ int main(void) {
   r = 1; g = 1; b = 1; // RGB off                   
 
   // Semaphores and mutexes
-  xAlarmSemaphore = xSemaphoreCreateBinary();      // used to unblock Alarm  
-  xClockMutex = xSemaphoreCreateMutex();           // used for hours, minutes, seconds
-  xPrintingMutex = xSemaphoreCreateMutex();        // used for lcd
+  xAlarmSemaphore = xSemaphoreCreateBinary();   // used to unblock Alarm  
+  xClockMutex = xSemaphoreCreateMutex();        // used for hours, minutes, seconds
+  xBufferMutex = xSemaphoreCreateMutex();       // used for 
+  xPrintingMutex = xSemaphoreCreateMutex();     // used for lcd
+  xAlarmMutex = xSemaphoreCreateMutex();        // used for alah, alam, alas, alat, alal, alaf
+  xParamMutex = xSemaphoreCreateMutex();        // used for pmon, tala, pproc
 
   // Queues
   xSensorInputQueue = xQueueCreate(1, sizeof(Sender));
@@ -385,12 +441,19 @@ int main(void) {
   xProcessingInputQueue = xQueueCreate(1, sizeof(InputData));
   xProcessingOutputQueue = xQueueCreate(1, sizeof(OutputData));
   
-  //TODO: check semaphore, mutexes and queues are not NULL?
-  
+  // Check if sufficient heap space
+  if (xAlarmSemaphore == NULL || xClockMutex == NULL || xPrintingMutex == NULL || xBufferMutex == NULL || xAlarmMutex == NULL
+      || xParamMutex == NULL || xSensorInputQueue == NULL || xSensorInputQueue == NULL || xProcessingInputQueue == NULL 
+      || xProcessingOutputQueue == NULL)
+  {
+    printf("\nInsufficient heap space! Exiting...\n");
+    return 1;
+  }
+
   // Tasks
   xTaskCreate(vTaskAlarm, "Alarm", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);
   xTaskCreate(vTaskSensorTimer, "TimerPMON", 2*configMINIMAL_STACK_SIZE, NULL, 4, &xSensorTimer);
-  xTaskCreate(vTaskProcessingTimer, "TimerPPROC", 2*configMINIMAL_STACK_SIZE, NULL, 4, &xProcessingTimer);
+  xTaskCreate(vTaskProcessingTimer, "TimerPPROC", 2*configMINIMAL_STACK_SIZE, NULL, 5, &xProcessingTimer);
   xTaskCreate(vTaskClock, "Clock", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
   xTaskCreate(vTaskSensors, "Sensors", 2*configMINIMAL_STACK_SIZE, NULL, 3, NULL);
   xTaskCreate(vTaskProcessing, "Processing", 2*configMINIMAL_STACK_SIZE, NULL, 2, NULL);

@@ -17,7 +17,7 @@ extern TaskHandle_t xSensorTimer, xProcessingTimer;
 
 extern QueueHandle_t xSensorInputQueue, xSensorOutputQueue, xProcessingQueue, xProcessingInputQueue, xProcessingOutputQueue;
 
-extern SemaphoreHandle_t xClockMutex, xPrintingMutex;
+extern SemaphoreHandle_t xClockMutex, xPrintingMutex, xBufferMutex, xAlarmMutex, xParamMutex;
 
 extern uint8_t hours, minutes, seconds;
 extern uint8_t pmon, tala, pproc; 
@@ -35,8 +35,11 @@ bool compareTime(Time *time1, Time *time2);
 +--------------------------------------------------------------------------*/ 
 void cmd_rc (int argc, char** argv) 
 {
-  // Mutex not used to display latest time
+  // CRITICAL SECTION
+  xSemaphoreTake(xClockMutex, portMAX_DELAY);
   printf("\nCurrent clock: %02d:%02d:%02d\n", hours, minutes, seconds);
+  xSemaphoreGive(xClockMutex);
+  // END OF CRITICAL SECTION
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_sc  - set clock
@@ -48,13 +51,13 @@ void cmd_sc (int argc, char** argv)
     Time time;
     if (splitTime(argv[1], &time)) // split hh:mm:ss and check if time is consistent
     {
-      // CRITICAL SECTION: hours, minutes, seconds may be modified from TaskClock
+      // CRITICAL SECTION
       xSemaphoreTake(xClockMutex, portMAX_DELAY);
       hours = (uint8_t)time.hours;
       minutes = (uint8_t)time.minutes;
       seconds = (uint8_t)time.seconds;
       xSemaphoreGive(xClockMutex);
-      
+      //END OF CRITICAL SECTION
       printf("\nClock correctly set!\n");
     }
     else printf("\nInvalid time format!\n");
@@ -81,8 +84,11 @@ void cmd_rtl (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_rp (int argc, char** argv) 
 {
-  // Mutex not needed because parameters are written only in this task
+  // CRITICAL SECTION
+  xSemaphoreTake(xParamMutex, portMAX_DELAY);
   printf("\nPMON = %u, TALA = %u, PPROC = %u seconds\n", pmon, tala, pproc);
+  xSemaphoreGive(xParamMutex);
+  // END OF CRITICAL SECTION
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_mmp - modify monitoring period (seconds - 0 deactivate)
@@ -97,8 +103,10 @@ void cmd_mmp (int argc, char** argv)
     if (s >= 0 && s < 60) // check seconds
     {
       // CRITICAL SECTION: change priority to avoid this task being preempted before suspending/resuming the timer
-      // (A mutex would only guarantee pmon will not be modified by others, not correct suspend/resume)
+      // (The mutex will only guarantee pmon will not be modified by others, not correct suspend/resume)
       vTaskPrioritySet(NULL, 4); // NULL refers to current task
+      // CRITICAL SECTION
+      xSemaphoreTake(xParamMutex, portMAX_DELAY);
       pmon = (uint8_t)s;
       // Suspend TaskSensorTimer if pmon is 0
       if (pmon == 0)
@@ -109,6 +117,7 @@ void cmd_mmp (int argc, char** argv)
         if (TimerState == eSuspended)
           vTaskResume(xSensorTimer);
       }
+      xSemaphoreGive(xParamMutex);
       printf("\nMonitoring period correctly set!\n");
       vTaskPrioritySet(NULL, 1);
       // END OF CRITICAL SECTION
@@ -127,8 +136,11 @@ void cmd_mta (int argc, char** argv)
     short s = atoi(argv[1]);
     if (s >= 0 && s < 60) // check seconds
     {
-      // Mutex not needed if we accept the modification to be available at the latest on the second execution of TaskClock or TaskSensors
+      // CRITICAL SECTION
+      xSemaphoreTake(xParamMutex, portMAX_DELAY);
       tala = (uint8_t)s;
+      xSemaphoreGive(xParamMutex);
+      // END OF CRITICAL SECTION
       printf("\nMonitoring period correctly set!\n");
     }
     else printf("\nInvalid seconds!\n");
@@ -148,8 +160,9 @@ void cmd_mpp (int argc, char** argv)
     if (s >= 0 && s < 60) // check seconds
     {
       // CRITICAL SECTION: change priority to avoid this task being preempted before suspending/resuming the timer
-      // (A mutex would only guarantee pproc will not be modified by others, not correct suspend/resume)
+      // (The mutex will only guarantee pproc will not be modified by others, not correct suspend/resume)
       //vTaskPrioritySet(NULL, 4); // NULL refers to current task
+      xSemaphoreTake(xParamMutex, portMAX_DELAY);
       pproc = (uint8_t)s;
       // Suspend TaskProcessingTimer if pproc is 0
       if (pproc == 0)
@@ -165,6 +178,7 @@ void cmd_mpp (int argc, char** argv)
         if (TimerState == eSuspended)
           vTaskResume(xProcessingTimer);
       }
+      xSemaphoreGive(xParamMutex);
       printf("\nMonitoring period correctly set!\n");
       //vTaskPrioritySet(NULL, 4);
       // END OF CRITICAL SECTION
@@ -178,8 +192,12 @@ void cmd_mpp (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_rai (int argc, char** argv) 
 {
+  // CRITICAL SECTION
+  xSemaphoreTake(xAlarmMutex, portMAX_DELAY);
   printf("\nALAH = %u, ALAM = %u, ALAS = %u\n", alah, alam, alas);
   printf("ALAT = %u, ALAL = %u, ALAF = %c\n", alat, alal, alaf ? 'A' : 'a');
+  xSemaphoreGive(xAlarmMutex);
+  // END OF CRITICAL SECTION
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_dac - define alarm clock
@@ -191,10 +209,13 @@ void cmd_dac (int argc, char** argv)
     Time time;
     if (splitTime(argv[1], &time)) // split hh:mm:ss and check if time is consistent
     {
-      // Mutex not needed if we accept the modification to be available at the latest on the second execution of TaskClock
+      // CRITICAL SECTION
+      xSemaphoreTake(xAlarmMutex, portMAX_DELAY);
       alah = (uint8_t)time.hours;
       alam = (uint8_t)time.minutes;
       alas = (uint8_t)time.seconds;
+      xSemaphoreGive(xAlarmMutex);
+      // END OF CRITICAL SECTION
       printf("\nClock threshold correctly set!\n");
     }
     else printf("\nInvalid time format!\n");
@@ -213,9 +234,12 @@ void cmd_dtl (int argc, char** argv)
     {
       if (l >= 0 && l <= 3) // check luminosity
       {
-        // Mutex not needed if we accept the modification to be available at the latest on the second execution of TaskSensors
+        // CRITICAL SECTION
+        xSemaphoreTake(xAlarmMutex, portMAX_DELAY);
         alat = (uint8_t)t;
         alal = (uint8_t)l;
+        xSemaphoreGive(xAlarmMutex);
+        // END OF CRITICAL SECTION
         printf("\nSensor thresholds correctly set!\n");
       }
       else printf("\nInvalid luminosity!\n");
@@ -234,8 +258,11 @@ void cmd_aa (int argc, char** argv)
     int num = int(argv[1][0]);
     if (num == 65 || num == 97) // ASCII: A = 65, a = 97
     {
-      // Mutex not needed if we accept the modification to be available at the latest on the second execution of TaskClock or TaskSensors
+      // CRITICAL SECTION
+      xSemaphoreTake(xAlarmMutex, portMAX_DELAY);
       alaf = (num == 65) ? 1 : 0;
+      xSemaphoreGive(xAlarmMutex);
+      // END OF CRITICAL SECTION
       printf("\nAlarm mode correctly set!\n");
     }
     else printf("\nInvalid character!\n");
@@ -247,7 +274,7 @@ void cmd_aa (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_cai (int argc, char** argv) 
 {
-  // CRITICAL SECTION: TaskClock and TaskSensors may want to use display
+  // CRITICAL SECTION
   xSemaphoreTake(xPrintingMutex, portMAX_DELAY);
   lcd.locate(77, 2); // C
   lcd.printf(" ");
@@ -256,6 +283,7 @@ void cmd_cai (int argc, char** argv)
   lcd.locate(97, 2); // L
   lcd.printf(" ");
   xSemaphoreGive(xPrintingMutex);
+  // END OF CRITICAL SECTION
   printf("\nAlarm correctly cleared!\n");
 }
 /*-------------------------------------------------------------------------+
@@ -263,8 +291,11 @@ void cmd_cai (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_ir (int argc, char** argv) 
 {
-  // Mutex not used to display latest parameters
+  // CRITICAL SECTION
+  xSemaphoreTake(xBufferMutex, portMAX_DELAY);
   printf("\nNR = %u, nr = %u, wi = %u, ri = %u\n", NR, nr, wi, ri);
+  xSemaphoreGive(xBufferMutex);
+  // END OF CRITICAL SECTION
 }
 /*-------------------------------------------------------------------------+
 | Function: cmd_lr  - list n records from index i (0 - oldest)
@@ -278,8 +309,12 @@ void cmd_lr (int argc, char** argv)
     {
       if (i >= 0 && i < NR) // check i
       {
+        // CRITICAL SECTION
+        xSemaphoreTake(xBufferMutex, portMAX_DELAY);
         for (short j = i; j < n; j++)
           printf("\nRecord %hd: %02u:%02u:%02u %u°C, %u\n", j, records[j].hours, records[j].minutes, records[j].seconds, records[j].temperature, records[j].luminosity);
+        xSemaphoreGive(xBufferMutex);
+        // END OF CRITICAL SECTION
       }
       else printf("\nInvalid number of records!\n");
     }
@@ -292,6 +327,8 @@ void cmd_lr (int argc, char** argv)
 +--------------------------------------------------------------------------*/ 
 void cmd_dr (int argc, char** argv) 
 {
+  // CRITICAL SECTION
+  xSemaphoreTake(xBufferMutex, portMAX_DELAY);
   // Delete records
   for (uint8_t i = 0; i < NR; i++)
   {
@@ -305,6 +342,8 @@ void cmd_dr (int argc, char** argv)
   nr = 0;
   wi = 0;
   ri = 0;
+  xSemaphoreGive(xBufferMutex);
+  // END OF CRITICAL SECTION
   printf("\nRecord correctly deleted!\n");
 }
 /*-------------------------------------------------------------------------+
@@ -328,8 +367,13 @@ void cmd_pr (int argc, char** argv)
       xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);
       // Receive data
       xQueueReceive(xProcessingOutputQueue, &output, portMAX_DELAY);
-      printf("\nTemperature (max, min, mean) = %u, %u, %.1f", output.maxT, output.minT, output.meanT);
-      printf("\nLuminosity (max, min, mean) = %u, %u, %.1f\n", output.maxL, output.minL, output.meanL);
+      if (output.minT == 50)
+        printf("\nNo records to be read!\n");
+      else
+      {
+        printf("\nTemperature (max, min, mean) = %u, %u, %.1f", output.maxT, output.minT, output.meanT);
+        printf("\nLuminosity (max, min, mean) = %u, %u, %.1f\n", output.maxL, output.minL, output.meanL);
+      }
       break;
 
     case 2:
@@ -342,8 +386,13 @@ void cmd_pr (int argc, char** argv)
         xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);
         // Receive data
         xQueueReceive(xProcessingOutputQueue, &output, portMAX_DELAY);
-        printf("\nTemperature (max, min, mean) = %u, %u, %f", output.maxT, output.minT, output.meanT);
-        printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", output.maxL, output.minL, output.meanL);
+        if (output.minT == 50)
+          printf("\nNo records to be read!\n");
+        else
+        {
+          printf("\nTemperature (max, min, mean) = %u, %u, %.1f", output.maxT, output.minT, output.meanT);
+          printf("\nLuminosity (max, min, mean) = %u, %u, %.1f\n", output.maxL, output.minL, output.meanL);
+        }
       }
       else printf("\nInvalid time format!\n");
       break;
@@ -360,8 +409,13 @@ void cmd_pr (int argc, char** argv)
           xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY);
           // Receive data
           xQueueReceive(xProcessingOutputQueue, &output, portMAX_DELAY);
-          printf("\nTemperature (max, min, mean) = %u, %u, %f", output.maxT, output.minT, output.meanT);
-          printf("\nLuminosity (max, min, mean) = %u, %u, %f\n", output.maxL, output.minL, output.meanL);
+          if (output.minT == 50)
+            printf("\nNo records to be read!\n");
+          else
+          {
+            printf("\nTemperature (max, min, mean) = %u, %u, %.1f", output.maxT, output.minT, output.meanT);
+            printf("\nLuminosity (max, min, mean) = %u, %u, %.1f\n", output.maxL, output.minL, output.meanL);
+          }
         }
         else printf("\nInvalid time interval!\n");
       }
