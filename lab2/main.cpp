@@ -75,11 +75,11 @@ void vTaskProcessingTimer(void *pvParameters)
   {
     // CRITICAL SECTION
     xSemaphoreTake(xParamMutex, portMAX_DELAY);
-    delay = pmon;
+    delay = pproc;
     xSemaphoreGive(xParamMutex);
     // END OF CRITICAL SECTION
     xQueueSend(xProcessingInputQueue, (void*)&input, portMAX_DELAY); // unblock TaskSensors
-    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * pproc));    // delay pproc sec
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000 * delay));    // delay pproc sec
   }
 }
 
@@ -262,7 +262,6 @@ void vTaskSensors(void *pvParameters)
 void vTaskProcessing(void *pvParameters)
 {
   InputData input;
-  Time time1, time2;
   uint8_t temp, lum;
   uint8_t count, new_temp, new_lum, sum_lum;
   int sum_temp; // 8 bits are not enough
@@ -447,8 +446,8 @@ int main(void) {
       || xProcessingOutputQueue == NULL)
   {
     printf("\nInsufficient heap space! Exiting...\n");
-    return 1;
-  }
+    return 1;
+  }
 
   // Tasks
   xTaskCreate(vTaskAlarm, "Alarm", 2*configMINIMAL_STACK_SIZE, NULL, 4, NULL);

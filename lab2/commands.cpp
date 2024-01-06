@@ -141,7 +141,7 @@ void cmd_mta (int argc, char** argv)
       tala = (uint8_t)s;
       xSemaphoreGive(xParamMutex);
       // END OF CRITICAL SECTION
-      printf("\nMonitoring period correctly set!\n");
+      printf("\nAlarm time correctly set!\n");
     }
     else printf("\nInvalid seconds!\n");
   }
